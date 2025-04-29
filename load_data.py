@@ -1,16 +1,28 @@
 
 from pymongo import MongoClient
-import json
+import pprint
 import ijson
 import os
+from decimal import Decimal
 
-connection_string = "mongodb+srv://nikolacupic555:hopacupa@tweet-cluster.ruxakzs.mongodb.net/?retryWrites=true&w=majority&appName=tweet-cluster"
+connection_string = "mongodb://localhost:27017/"
 client = MongoClient(connection_string) #left the connect like that, should fix (env or smth)
 
 db = client.twitter_db
 collection = db.tweets
 print(client.list_database_names())
-json_dir = './tweets_json/'
+json_dir = './cleaned_tweets_json/'
+
+def convert_decimals(obj):
+    if isinstance(obj, dict):
+        return {k: convert_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals(i) for i in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    else:
+        return obj
+
 
 def clean_data(data: dict) -> dict:
    
@@ -22,12 +34,14 @@ def clean_data(data: dict) -> dict:
     "profile_background_image_url", "profile_background_image_url_https", "profile_background_tile",
     "profile_link_color", "profile_sidebar_border_color", "profile_sidebar_fill_color",
     "profile_text_color", "profile_use_background_image", "profile_image_url",
-    "profile_image_url_https", "profile_banner_url", "default_profile", "default_profile_image",
-    "following", "follow_request_sent", "notifications", "protected"]
+    "profile_image_url_https", "profile_banner_url", "default_profile_image",
+    "following", "follow_request_sent", "notifications", "protected", "is_translation_enabled", ]
     
-    purge_place_columns: list[str] = ["bounding_box", "attributes"]
+    purge_place_columns: list[str] = ["bounding_box", "attributes", "country", "place_type", "name", "url"]
 
-    purge_other_columns: list[str] = ["geo", "coordinates", "favorite_count", "favorited", "retweeted", "possibly_sensitive", "filter_level", "contributors"]
+    purge_entities_columns: list[str] = ['symbols', 'polls']
+
+    purge_other_columns: list[str] = ["geo", "coordinates", "favorited", "retweeted", "possibly_sensitive", "filter_level", "contributors", "truncated", "extended_entities"]
 
     for field in purge_other_columns:
         if field in data.keys():
@@ -42,19 +56,28 @@ def clean_data(data: dict) -> dict:
     for field in purge_place_columns:
         if 'place' in data.keys():
             if data['place'] != None:
-                if field in data['user'].keys():
+                if field in data['place'].keys():
                     data['place'].pop(field)
-    return data  
     
+    for field in purge_entities_columns:
+        if 'entities' in data.keys():
+            if data['entities'] != None:
+                if field in data['entities'].keys():
+                    data['entities'].pop(field)
+    return data  
+
 for file_name in os.listdir(json_dir):
     if file_name.endswith('.json'):
         file_path = os.path.join(json_dir, file_name)
         with open(file=file_path, encoding='utf-8') as file:
             objects = ijson.items(file, '', multiple_values=True)
             for obj in objects:
-                clean_data(obj)
-                print(obj)
+                try:
+                    obj = clean_data(obj)
+                    obj = convert_decimals(obj)
+                    collection.insert_one(obj)
+                except Exception as e:
+                    print(f"Error: {e}")
                 
 
 print("All tweets loaded")
-
