@@ -1,13 +1,15 @@
 
 from pymongo import MongoClient
-import pprint
 import ijson
 import os
 from decimal import Decimal
+from dotenv import load_dotenv
 
-connection_string = "mongodb://admin:hopacupa@206.189.2.213:27017/?authSource=admin"
+load_dotenv()
+database_url = os.getenv("DATABASE_URL")
+
+connection_string = database_url
 client = MongoClient(connection_string) #left the connect like that, should fix (env or smth)
-print("Connected to MongoDB")
 db = client.twitter_db
 collection = db.tweets
 print(client.list_database_names())
