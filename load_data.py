@@ -5,9 +5,9 @@ import ijson
 import os
 from decimal import Decimal
 
-connection_string = "mongodb://localhost:27017/"
+connection_string = "mongodb://admin:hopacupa@206.189.2.213:27017/?authSource=admin"
 client = MongoClient(connection_string) #left the connect like that, should fix (env or smth)
-
+print("Connected to MongoDB")
 db = client.twitter_db
 collection = db.tweets
 print(client.list_database_names())
@@ -78,6 +78,7 @@ for file_name in os.listdir(json_dir):
                     collection.insert_one(obj)
                 except Exception as e:
                     print(f"Error: {e}")
+                pass
                 
 
 print("All tweets loaded")
