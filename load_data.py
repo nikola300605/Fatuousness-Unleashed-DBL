@@ -78,9 +78,10 @@ for file_name in os.listdir(json_dir):
                     obj = clean_data(obj)
                     obj = convert_decimals(obj)
                     collection.insert_one(obj)
+                    print(f"Inserted tweet with id: {obj['id']}")
                 except Exception as e:
                     print(f"Error: {e}")
-                pass
+                
                 
 
 print("All tweets loaded")
