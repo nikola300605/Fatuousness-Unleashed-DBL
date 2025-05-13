@@ -1,6 +1,4 @@
-from bson import json_util, ObjectId
-import json
-from pandas import json_normalize
+from processing_data import process_batch
 from pymongo_interface import get_documents_batch
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -10,12 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d """
 
-def process_batch(batch):
-    sanitised = json.loads(json_util.dumps(batch))
-    normalised = json_normalize(sanitised)
-    df = pd.DataFrame(normalised)
 
-    return df
 
 def get_top_languages(df):
     """ Get the top 10 languages used in the tweets """
@@ -34,7 +27,7 @@ def main():
         i += 1
     
     # Uncomment the following lines to enable multiprocessing
-    """ MAX_WORKERS = os.cpu_count() - 1 
+    MAX_WORKERS = os.cpu_count() - 1 
     with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
         i = 0
@@ -47,7 +40,7 @@ def main():
         for future in as_completed(futures):
             result = future.result()
 
-            print(result.info()) """
+            print(result.info())
     ############################################################################
 
     """ # Add new columns for analysis
