@@ -13,7 +13,7 @@ def process_batch(batch):
 
     return df
 
-#Defining Airline IDs for checking the match of the Tweet
+#Defining Airline IDs for checking the match of the Tweet.
 
 AIRLINE_IDS = {
     56377143, 106062176, 18332190, 22536055, 124476322, 26223583,
@@ -21,6 +21,7 @@ AIRLINE_IDS = {
     20626359
 }
 
+#Creating dictionary that have key as id, value as tweet.
 def mine_conversations():
     collection = get_mongo_collection()
     tweets = list(collection.find({}))
