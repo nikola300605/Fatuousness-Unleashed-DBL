@@ -5,6 +5,7 @@ import json
 from pandas import json_normalize
 from pymongo_interface import get_mongo_collection
 from dateutil import parser
+from collections import deque
 
 def process_batch(batch):
     sanitised = json.loads(json_util.dumps(batch))
