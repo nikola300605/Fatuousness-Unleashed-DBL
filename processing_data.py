@@ -36,18 +36,25 @@ def mine_conversations():
     skipped = 0
 
     for tweet in tweets:
-        parent_id = tweet.get("in_reply_to_status_id")
-        if not parent_id:
-            continue
+        conversation_thread = deque([tweet])
+        current_tweet = tweet
 
-        parent = tweet_by_id(parent_id)
-        if not parent:
-            skipped += 1
-            continue
+        while True:
+            parent_id = current_tweet.get('in_reply_to_status_id')
+            if not parent_id:
+                break
 
-        try:
-            t1 = parser.parse(parent["created_at"])
-            t2 = parser.parse(tweet['created_at'])
-        except Exception as e:
-            skipped += 1
-            continue
+            parent = tweet_by_id.get(parent_id)
+            if not parent:
+                skipped += 1
+                break
+
+            try:
+                t_parent = parser.parse(parent['created_at'])
+                t_current = parser.parse(current_tweet['created_at'])
+                if abs((t_current - t_parent).days) > 7:
+                    break
+            except Exception as e:
+                skipped += 1
+                break
+
