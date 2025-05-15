@@ -3,7 +3,7 @@ import pandas as pd
 from bson import json_util, ObjectId
 import json
 from pandas import json_normalize
-from pymongo_interface import get_mongo_collection
+from pymongo_interface import get_documents_batch
 from dateutil import parser
 from collections import deque
 
@@ -24,20 +24,25 @@ AIRLINE_IDS = {
 
 #Creating dictionary that have key as id, value as tweet.
 def mine_conversations():
-    collection = get_mongo_collection()
-    tweets = list(collection.find({}))
+    collection = 'tweets_try'
     tweet_by_id = {}
-
-    for tweet in tweets:
-        if "id" in tweet:
-            tweet_by_id[tweet["id"]] = tweet
-
     conversations = []
     skipped = 0
 
-    for tweet in tweets:
-        conversation_thread = deque([tweet])
-        current_tweet = tweet
+    #First pass: build the ID
+    print(f'Indexing tweets by id...')
+    for batch in get_documents_batch(collection=collection):
+        for tweet in batch:
+            if "id" in tweet:
+                tweet_by_id[tweet["id"]] = tweet
+
+   
+    #Second pass: iterate again and build conversations
+    print("Mining conversations...")
+    for batch in get_documents_batch(collection=collection):
+        for tweet in batch:
+            conversation_thread = deque([tweet])
+            current_tweet = tweet
 
         while True:
             parent_id = current_tweet.get('in_reply_to_status_id')
@@ -65,6 +70,7 @@ def mine_conversations():
 
             conversation_thread.appendleft(parent)
             current_tweet = parent
+            
         if len(conversation_thread) >= 2:
             conversations.append(list(conversation_thread))
 

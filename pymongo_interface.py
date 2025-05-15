@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # Initialize MongoDB connection
 
 
-def get_documents_batch(batch_size=1000, collection='tweets'):
+def get_documents_batch(batch_size=1000, collection='tweets_try'):
     """
     Generator to yield batches of size 1000 documents from MongoDB.
     This function uses a projection to exclude certain fields from the documents. Change the projection as needed.
