@@ -57,4 +57,18 @@ def mine_conversations():
             except Exception as e:
                 skipped += 1
                 break
+            
+            user_parent = parent["user"]["id"]
+            user_current = current_tweet["user"]["id"]
+            if (user_parent in AIRLINE_IDS) == (user_current in AIRLINE_IDS):
+                break
+
+            conversation_thread.appendleft(parent)
+            current_tweet = parent
+        if len(conversation_thread) >= 2:
+            conversations.append(list(conversation_thread))
+
+    print(f'Found {len(conversations)} valid conversations.')
+    print(f'Skipped {skipped} tweets due to  issues.')
+    return conversations
 
