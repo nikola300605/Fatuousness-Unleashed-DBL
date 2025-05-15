@@ -33,3 +33,20 @@ def mine_conversations():
 
     conversations = []
     skipped = 0
+
+    for tweet in tweets:
+        parent_id = tweet.get("in_reply_to_status_id")
+        if not parent_id:
+            continue
+
+        parent = tweet_by_id(parent_id)
+        if not parent:
+            skipped += 1
+            continue
+
+        try:
+            t1 = parser.parse(parent["created_at"])
+            t2 = parser.parse(tweet['created_at'])
+        except Exception as e:
+            skipped += 1
+            continue
