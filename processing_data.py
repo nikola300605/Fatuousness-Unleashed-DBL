@@ -7,6 +7,7 @@ from pymongo_interface import get_documents_batch
 from dateutil import parser
 from collections import deque
 
+
 def process_batch(batch):
     sanitised = json.loads(json_util.dumps(batch))
     normalised = json_normalize(sanitised)
@@ -72,9 +73,20 @@ def mine_conversations():
             current_tweet = parent
             
         if len(conversation_thread) >= 2:
-            conversations.append(list(conversation_thread))
+                participants = [t["user"]["screen_name"] for t in conversation_thread]
+                airline_user = next(
+                    (t["user"]["screen_name"] for t in conversation_thread if t["user"]["id"] in AIRLINE_IDS),
+                    None
+                )
+                conversations.append({
+                    "length": len(conversation_thread),
+                    "participants": participants,
+                    "airline": airline_user,
+                    "thread": list(conversation_thread)
+                })
 
     print(f'Found {len(conversations)} valid conversations.')
-    print(f'Skipped {skipped} tweets due to  issues.')
+    print(f'Skipped {skipped} tweets due to issues.')
     return conversations
+
 

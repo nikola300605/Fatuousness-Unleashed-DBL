@@ -80,3 +80,16 @@ def send_to_mongo(batch, collection='tweets'):
     db = client.twitter_db
     collection = db[collection]
     collection.insert_many(batch)
+
+def save_conversations_to_mongo(conversations, collection_name='conversation_threads'):
+    load_dotenv()
+    database_url = os.getenv("DATABASE_URL")
+    client = MongoClient(database_url, connect=True, maxPoolSize=50)
+    db = client.twitter_db
+    collection = db[collection_name]
+
+    if conversations:
+        collection.insert_many(conversations)
+        print(f"Saved {len(conversations)} conversation threads to MongoDB collection '{collection_name}'")
+    else:
+        print("No conversations to save.")
