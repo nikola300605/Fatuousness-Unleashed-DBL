@@ -4,4 +4,4 @@ from tqdm import tqdm
 
 
 for conv_batch in tqdm(mine_conversations(), desc="Processing conversation batches"):
-    save_conversations_to_mongo(conversations=conv_batch, collection_name='conversation')
+    save_conversations_to_mongo(conv_batch, 'conversations')

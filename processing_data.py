@@ -94,6 +94,7 @@ def mine_conversations():
                     conversation_thread.appendleft(parent)
                     current_tweet = parent
                 if len(conversation_thread) >= 2:
+
                     if (tweet["user"]["id"] not in AIRLINE_IDS and
                         "entities" in tweet and
                         any(mention["id"] in AIRLINE_IDS for mention in tweet["entities"]["user_mentions"])
@@ -112,8 +113,6 @@ def mine_conversations():
                         }
 
                         conversation_batch.append(conversation)
-                        print(conversation_batch)
-
                         if len(conversation_batch) >= 1000:
                             yield conversation_batch
                             conversation_batch.clear()
