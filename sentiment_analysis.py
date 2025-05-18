@@ -15,25 +15,30 @@ model = AutoModelForSequenceClassification.from_pretrained("nlptown/bert-base-mu
 
 nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
 
-for batch in get_documents_batch(batch_size=1000, collection='tweets_try'):
-    texts = [tweet.get("text", "") for tweet in batch if tweet.get("text")]
+def get_sentiment(batch):
+    for conv in batch:
+        thread_texts = []
+        twitter_refs = []
+        for tweet in conv['thread']:
 
-    if not texts:
-        print("No text found in the batch.")
-        continue
+            text = tweet.get('text') if 'text' in tweet else None
+            if not text:
+                print("No text found in the tweet.")
+                continue
 
-    results = nlp(texts)
+            thread_texts.append(text)
+            twitter_refs.append(tweet)
 
-    new_batch = []
-    for tweet, result in zip(batch, results):
-        tweet['sentiment'] = {'label': result['label'], 'score': round(result['score'], 2)}
-        new_batch.append(tweet)
+        results = nlp(thread_texts)
+        for tweet,result in zip(twitter_refs, results):
+            tweet['sentiment'] = {'label': result['label'], 'score': round(result['score'], 2)}
+    
+    return batch
+            
 
-    break  
-
-df = process_batch(new_batch)
+""" df = process_batch(new_batch)
 scores = df['sentiment.label'].value_counts().plot(kind='bar')
-plt.show()
+plt.show() """
 
 # Total number of conversations
 # Average conversation length (tweet number)
