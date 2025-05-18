@@ -1,29 +1,29 @@
 import os
 import pandas as pd
-from bson import json_util, ObjectId
+from bson import json_util
 import json
 from pandas import json_normalize
 from pymongo_interface import get_documents_batch
 from dateutil import parser
 from collections import deque
+import traceback
+import time
 
-
+# Flatten a batch of tweets into a DataFrame
 def process_batch(batch):
     sanitised = json.loads(json_util.dumps(batch))
     normalised = json_normalize(sanitised)
     df = pd.DataFrame(normalised)
-
     return df
 
-#Defining Airline IDs for checking the match of the Tweet.
-
+# Set of known airline user IDs
 AIRLINE_IDS = {
     56377143, 106062176, 18332190, 22536055, 124476322, 26223583,
     2182373406, 38676903, 1542862735, 253340062, 218730857, 45621423,
     20626359
 }
 
-#Creating dictionary that have key as id, value as tweet.
+# Reconstruct conversation threads between customers and airlines
 def mine_conversations():
     collection = 'tweets_try'
     tweet_by_id = {}
