@@ -4,6 +4,11 @@ import pandas as pd
 import numpy as np
 import torch
 from pymongo_interface import get_documents_batch
+from processing_data import process_batch
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
 
 tokenizer = AutoTokenizer.from_pretrained("nlptown/bert-base-multilingual-uncased-sentiment")
 model = AutoModelForSequenceClassification.from_pretrained("nlptown/bert-base-multilingual-uncased-sentiment")
@@ -19,15 +24,21 @@ for batch in get_documents_batch(batch_size=1000, collection='tweets_try'):
 
     results = nlp(texts)
 
-   
+    new_batch = []
     for tweet, result in zip(batch, results):
         tweet['sentiment'] = {'label': result['label'], 'score': round(result['score'], 2)}
-        print(f"Tweet: {tweet.get('text', '')[:20]}...\n→ Sentiment: {result}, Score: {result['score']:.2f}\n")
-        print(tweet)
-        print("\n \n")
-        
-
+        new_batch.append(tweet)
 
     break  
 
+df = process_batch(new_batch)
+scores = df['sentiment.label'].value_counts().plot(kind='bar')
+plt.show()
 
+# Total number of conversations
+# Average conversation length (tweet number)
+# Mean sentiment score
+# Sentiment distribution
+# Average response time
+# Average response time per airline
+# Trends over time  
