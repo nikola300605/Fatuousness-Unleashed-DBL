@@ -1,5 +1,0 @@
-from processing_data import mine_conversations
-from pymongo_interface import save_conversations_to_mongo
-
-conversations = mine_conversations()
-save_conversations_to_mongo(conversations)
