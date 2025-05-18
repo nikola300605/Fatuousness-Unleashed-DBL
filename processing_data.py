@@ -27,66 +27,71 @@ AIRLINE_IDS = {
 def mine_conversations():
     collection = 'tweets_try'
     tweet_by_id = {}
-    conversations = []
     skipped = 0
+    conversation_batch = []
 
-    #First pass: build the ID
+    # First pass: build the ID map
     print(f'Indexing tweets by id...')
     for batch in get_documents_batch(collection=collection):
         for tweet in batch:
             if "id" in tweet:
                 tweet_by_id[tweet["id"]] = tweet
 
-   
-    #Second pass: iterate again and build conversations
+    # Second pass: iterate again and build conversations
     print("Mining conversations...")
     for batch in get_documents_batch(collection=collection):
         for tweet in batch:
             conversation_thread = deque([tweet])
             current_tweet = tweet
 
-        while True:
-            parent_id = current_tweet.get('in_reply_to_status_id')
-            if not parent_id:
-                break
-
-            parent = tweet_by_id.get(parent_id)
-            if not parent:
-                skipped += 1
-                break
-
-            try:
-                t_parent = parser.parse(parent['created_at'])
-                t_current = parser.parse(current_tweet['created_at'])
-                if abs((t_current - t_parent).days) > 7:
+            while True:
+                parent_id = current_tweet.get('in_reply_to_status_id')
+                if not parent_id:
                     break
-            except Exception as e:
-                skipped += 1
-                break
-            
-            user_parent = parent["user"]["id"]
-            user_current = current_tweet["user"]["id"]
-            if (user_parent in AIRLINE_IDS) == (user_current in AIRLINE_IDS):
-                break
 
-            conversation_thread.appendleft(parent)
-            current_tweet = parent
-            
-        if len(conversation_thread) >= 2:
+                parent = tweet_by_id.get(parent_id)
+                if not parent:
+                    skipped += 1
+                    break
+
+                try:
+                    t_parent = parser.parse(parent['created_at'])
+                    t_current = parser.parse(current_tweet['created_at'])
+                    if abs((t_current - t_parent).days) > 7:
+                        break
+                except Exception:
+                    skipped += 1
+                    break
+
+                user_parent = parent["user"]["id"]
+                user_current = current_tweet["user"]["id"]
+                if (user_parent in AIRLINE_IDS) == (user_current in AIRLINE_IDS):
+                    break
+
+                conversation_thread.appendleft(parent)
+                current_tweet = parent
+
+            if len(conversation_thread) >= 2:
                 participants = [t["user"]["screen_name"] for t in conversation_thread]
                 airline_user = next(
                     (t["user"]["screen_name"] for t in conversation_thread if t["user"]["id"] in AIRLINE_IDS),
                     None
                 )
-                conversations.append({
+                conversation = {
                     "length": len(conversation_thread),
                     "participants": participants,
                     "airline": airline_user,
                     "thread": list(conversation_thread)
-                })
+                }
 
-    print(f'Found {len(conversations)} valid conversations.')
+                conversation_batch.append(conversation)
+
+                if len(conversation_batch) >= 1000:
+                    yield conversation_batch
+                    conversation_batch.clear()
+
+    if conversation_batch:
+        yield conversation_batch
+        conversation_batch.clear()
+
     print(f'Skipped {skipped} tweets due to issues.')
-    return conversations
-
-
