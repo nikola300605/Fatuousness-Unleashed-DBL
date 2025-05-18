@@ -9,4 +9,3 @@ model = AutoModelForSequenceClassification.from_pretrained("nlptown/bert-base-mu
 
 nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
 
-print(torch.cuda.is_available())
