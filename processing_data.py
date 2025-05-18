@@ -34,7 +34,6 @@ def create_id_map():
         for tweet in batch:
             if 'in_reply_to_status_id' in tweet and not None:
                 reply_ids.add(tweet['in_reply_to_status_id'])
-            print(f"Processed tweet {tweet['id']}")
 
         if i == 1:
             break
@@ -46,8 +45,9 @@ def create_id_map():
     print("Caching parents...")
     for batch in get_documents_batch(collection='tweets_try'):
         for tweet in batch:
-            if tweet['id'] in reply_ids:  # Only store if this tweet is a parent
-                tweet_by_id[tweet['id']] = tweet
+            if "id" in tweet:
+                if tweet['id'] in reply_ids:  # Only store if this tweet is a parent
+                    tweet_by_id[tweet['id']] = tweet
         
         if i == 1:
             break
