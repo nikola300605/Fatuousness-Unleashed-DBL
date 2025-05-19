@@ -1,40 +1,43 @@
 from transformers import pipeline
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 import pandas as pd
 import numpy as np
 import torch
-from pymongo_interface import get_documents_batch
-from processing_data import process_batch
-
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 
-tokenizer = AutoTokenizer.from_pretrained("nlptown/bert-base-multilingual-uncased-sentiment")
-model = AutoModelForSequenceClassification.from_pretrained("nlptown/bert-base-multilingual-uncased-sentiment")
+
+tokenizer = DistilBertTokenizer.from_pretrained("tabularisai/multilingual-sentiment-analysis")
+model = DistilBertForSequenceClassification.from_pretrained("tabularisai/multilingual-sentiment-analysis")
 
 nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
 
 def get_sentiment(batch):
+    all_texts = []
+    tweet_refs = []
+
     for conv in batch:
-        thread_texts = []
-        twitter_refs = []
         for tweet in conv['thread']:
-
-            text = tweet.get('text') if 'text' in tweet else None
+            text = tweet.get('text')
             if not text:
-                print("No text found in the tweet.")
                 continue
+            all_texts.append(text)
+            tweet_refs.append(tweet)
 
-            thread_texts.append(text)
-            twitter_refs.append(tweet)
+    # Single batched sentiment call
+    results = nlp(all_texts, batch_size=32)  # You can tune batch_size
 
-        results = nlp(thread_texts)
-        for tweet,result in zip(twitter_refs, results):
-            tweet['sentiment'] = {'label': result['label'], 'score': round(result['score'], 2)}
-    
+    # Assign results back to tweets
+    for tweet, result in zip(tweet_refs, results):
+        tweet['sentiment'] = {'label': result['label'], 'score': round(result['score'], 2)}
+
     return batch
             
+""" sentence = "I love this product! It's amazing and works perfectly."
+result = nlp(sentence)
+
+# Print the result
+print(result) """
+
 
 """ df = process_batch(new_batch)
 scores = df['sentiment.label'].value_counts().plot(kind='bar')
