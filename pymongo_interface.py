@@ -23,15 +23,10 @@ def get_documents_batch(batch_size=1000, collection='tweets_try', query = {}):
         'id': True,
         'user': True,
         'in_reply_to_status_id': True,
-<<<<<<< HEAD
-        'entities': True,   
-        'extended_tweet.full_text': True,
-=======
         'entities': True,
         'lang': True,
         'extended_tweet:': True,
         'text': True
->>>>>>> ec1ba736bb8223f5456f61720156395bf9b5e065
     }
     cursor = collection.find(query, projection=projection, batch_size=batch_size, allow_disk_use=True)
     batch = []
