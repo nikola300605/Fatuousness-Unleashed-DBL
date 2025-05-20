@@ -9,7 +9,11 @@ model = DistilBertForSequenceClassification.from_pretrained("tabularisai/multili
 
 nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
 
-dataset = load_dataset("carblacac/twitter-sentiment-analysis")
+dataset = load_dataset(
+    "carblacac/twitter-sentiment-analysis",
+    trust_remote_code=True,
+    cache_dir="./hf_cache",
+)
 test_data = dataset["test"]
 
 texts = [item['text'] for item in test_data]
