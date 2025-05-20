@@ -14,9 +14,11 @@ model = DistilBertForSequenceClassification.from_pretrained(model_name, trust_re
 
 nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
 
-# Step 2: Load the Dataset from Hugging Face
-# This dataset has 'text' and 'feeling' (0 = Negative, 1 = Positive)
-dataset = load_dataset("carblacac/twitter-sentiment-analysis", trust_remote_code=True)
+dataset = load_dataset(
+    "carblacac/twitter-sentiment-analysis",
+    trust_remote_code=True,
+    cache_dir="./hf_cache",
+)
 test_data = dataset["test"]
 
 # Step 3: Predict Labels Using the Model

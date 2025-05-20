@@ -30,7 +30,7 @@ def create_id_map():
     # First pass: Collect IDs of tweets that are replied to
     reply_ids = set()
     print("Identifying potential parents...")
-    for batch in get_documents_batch(collection='tweets_try'):
+    for batch in get_documents_batch(collection='tweets_try', query={'lang': {'$in': ["ar", "en", "fr", "de", "hi", "it", "sp", "pt"]}}):
         for tweet in batch:
             if 'deleted' in tweet:
                 continue
@@ -40,7 +40,7 @@ def create_id_map():
 
     tweet_by_id = {}
     print("Caching parents...")
-    for batch in get_documents_batch(collection='tweets_try'):
+    for batch in get_documents_batch(collection='tweets_try', query={'lang': {'$in': ["ar", "en", "fr", "de", "hi", "it", "sp", "pt"]}}):
         for tweet in batch:
             if 'deleted' in tweet:
                 continue
@@ -61,7 +61,7 @@ def mine_conversations():
 
     # Second pass: iterate again and build conversations
     print("Mining conversations...")
-    for batch in get_documents_batch(collection=collection):
+    for batch in get_documents_batch(collection=collection, query={'lang': {'$in': ["ar", "en", "fr", "de", "hi", "it", "sp", "pt"]}}):
         for tweet in batch:
             try:
                 conversation_thread = deque([tweet])
