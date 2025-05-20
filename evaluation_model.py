@@ -1,30 +1,49 @@
-from transformers import pipeline
-from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-from tqdm import tqdm
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification, pipeline
 from datasets import load_dataset
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report
+from tqdm import tqdm
+import os
 
-tokenizer = DistilBertTokenizer.from_pretrained("tabularisai/multilingual-sentiment-analysis")
-model = DistilBertForSequenceClassification.from_pretrained("tabularisai/multilingual-sentiment-analysis")
+os.environ['HF_DATASETS_CACHE'] = './hf_cache'
+
+# Step 1: Load the Pretrained Model and Tokenizer
+model_name = "tabularisai/multilingual-sentiment-analysis"
+
+tokenizer = DistilBertTokenizer.from_pretrained(model_name, trust_remote_code=True)
+model = DistilBertForSequenceClassification.from_pretrained(model_name, trust_remote_code=True)
 
 nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
 
-dataset = load_dataset("carblacac/twitter-sentiment-analysis")
+# Step 2: Load the Dataset from Hugging Face
+# This dataset has 'text' and 'feeling' (0 = Negative, 1 = Positive)
+dataset = load_dataset("carblacac/twitter-sentiment-analysis", trust_remote_code=True)
 test_data = dataset["test"]
 
-texts = [item['text'] for item in test_data]
-true_labels = [item['feeling'] for item in test_data]
-
-# Batch prediction for speed
-results = nlp(texts, batch_size=32)
-predictions = [result['label'] for result in results]
+# Step 3: Predict Labels Using the Model
+pred_labels = []
+true_labels = []
 
 label_map = {
-    'NEGATIVE': 0,
-    'POSITIVE': 1
+    "NEGATIVE": 0,
+    "POSITIVE": 1
 }
-pred_labels = [label_map[pred] for pred in predictions]
 
-# Calculate accuracy
+print("Running predictions...")
+
+for item in tqdm(test_data):
+    text = item["text"]
+    true_label = item["feeling"]
+
+    prediction = nlp(text)[0]['label']
+    pred_label = label_map[prediction]
+
+    pred_labels.append(pred_label)
+    true_labels.append(true_label)
+
+# Step 4: Compute and Print Accuracy
 accuracy = accuracy_score(true_labels, pred_labels)
-print(f"Accuracy: {accuracy:.4f}")
+print(f"\n✅ Accuracy: {accuracy:.2f}")
+
+# Optional: Detailed Performance Breakdown
+print("\n📊 Classification Report:")
+print(classification_report(true_labels, pred_labels, target_names=["NEGATIVE", "POSITIVE"]))
