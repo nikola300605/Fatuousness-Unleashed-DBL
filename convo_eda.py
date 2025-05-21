@@ -131,20 +131,15 @@ if airline_data:
 
 #vsualization
 print("\nGenerating visualizations...")
-fig = plt.figure(figsize=(18, 22))
-gs = GridSpec(4, 2, figure=fig)
+os.makedirs("plots", exist_ok=True)
 
-os.makedirs("plots", exist_ok=True)  # Ensure output folder exists
-
-
-#Summary Table
+# Summary Table
 summary_data = [
     ["Total Conversations", stats['total_conversations']],
     ["Avg Convo Length", f"{stats['total_length']/stats['total_conversations']:.2f}"],
     ["Mean Sentiment", f"{np.mean(stats['sentiment_scores']):.2f}" if stats['sentiment_scores'] else "N/A"],
     ["Avg Response Time", f"{np.mean(stats['response_times']):.2f} mins" if stats['response_times'] else "N/A"]
 ]
-
 fig, ax = plt.subplots(figsize=(6, 2))
 ax.axis('off')
 ax.table(cellText=summary_data, colLabels=["Metric", "Value"], loc='center', cellLoc='center')
@@ -152,33 +147,39 @@ ax.set_title('Key Statistics', pad=10)
 plt.savefig("plots/summary_table.png")
 plt.show()
 
-#Conversation Length Distribution (Clipped)
-clipped_lengths = [x for x in stats['convo_lengths'] if x <= 10]  # Most data lies here
+# Conversation Length Distribution (Clipped)
+clipped_lengths = [x for x in stats['convo_lengths'] if x <= 10]
 plt.figure(figsize=(8, 4))
-sns.histplot(clipped_lengths, bins=10, kde=False)
+sns.histplot(clipped_lengths, bins=10, kde=False, color=custom_palette[0])
 plt.title("Conversation Length Distribution (Clipped at 10)", fontsize=14, fontweight="bold", color="#355C7D")
 plt.xlabel("Number of Tweets")
 plt.tight_layout()
 plt.savefig("plots/convo_length_clipped_distribution.png")
 plt.show()
 
-
-#Sentiment Label Distribution
+# Sentiment Label Distribution with Percentages
 label_counts = Counter(stats['sentiment_labels'])
+labels = list(label_counts.keys())
+values = list(label_counts.values())
+total = sum(values)
+colors = [custom_palette[i % len(custom_palette)] for i in range(len(values))]
+
 plt.figure(figsize=(6, 4))
-sns.barplot(x=list(label_counts.keys()), y=list(label_counts.values()))
+sns.barplot(x=labels, y=values, palette=colors)
 plt.title("Sentiment Label Distribution", fontsize=14, fontweight="bold", color="#355C7D")
 plt.xlabel("Sentiment")
 plt.ylabel("Tweet Count")
+for i, v in enumerate(values):
+    percent = f"{(v / total) * 100:.1f}%"
+    plt.text(i, v + max(values) * 0.01, percent, ha='center', va='bottom', fontsize=10)
 plt.tight_layout()
 plt.savefig("plots/sentiment_label_distribution.png")
 plt.show()
 
-
-#Sentiment Score Distribution
+# Sentiment Confidence Distribution
 if stats['sentiment_scores']:
     plt.figure(figsize=(8, 4))
-    sns.histplot(stats['sentiment_scores'], bins=30, kde=True)
+    sns.histplot(stats['sentiment_scores'], bins=30, kde=True, color=custom_palette[2])
     plt.title("Sentiment Confidence Distribution", fontsize=14, fontweight="bold", color="#355C7D")
     plt.xlabel("Confidence")
     plt.axvline(np.mean(stats['sentiment_scores']), color='r', linestyle='--', label=f'Mean Confidence: {np.mean(stats["sentiment_scores"]):.2f}')
@@ -187,24 +188,22 @@ if stats['sentiment_scores']:
     plt.savefig("plots/sentiment_score_distribution.png")
     plt.show()
 
-
-#Response Time Distribution (Clipped)
-clipped_response_times = [x for x in stats['response_times'] if x <= 500]  # Filter out huge delays
+# Response Time Distribution (Clipped)
+clipped_response_times = [x for x in stats['response_times'] if x <= 500]
 plt.figure(figsize=(8, 4))
-sns.histplot(clipped_response_times, bins=50, kde=False)
+sns.histplot(clipped_response_times, bins=50, kde=False, color=custom_palette[1])
 plt.title("Response Time Distribution (Clipped at 500 mins)", fontsize=14, fontweight="bold", color="#355C7D")
 plt.xlabel("Minutes")
 plt.tight_layout()
 plt.savefig("plots/response_time_clipped_distribution.png")
 plt.show()
 
-
-
-#Airline Avg Response Times
+# Airline Avg Response Times
 airline_avg_times = {k: np.mean(v) for k, v in stats['airline_times'].items() if v}
 if airline_avg_times:
+    colors = [custom_palette[i % len(custom_palette)] for i in range(len(airline_avg_times))]
     plt.figure(figsize=(10, 4))
-    sns.barplot(x=list(airline_avg_times.keys()), y=list(airline_avg_times.values()))
+    sns.barplot(x=list(airline_avg_times.keys()), y=list(airline_avg_times.values()), palette=colors)
     plt.title("Average Response Time by Airline", fontsize=14, fontweight="bold", color="#355C7D")
     plt.ylabel("Minutes")
     plt.xticks(rotation=45)
@@ -212,11 +211,11 @@ if airline_avg_times:
     plt.savefig("plots/airline_response_times.png")
     plt.show()
 
-
-#Airline Conversation Counts
+# Airline Conversation Counts
 if stats['airline_counts']:
+    colors = [custom_palette[i % len(custom_palette)] for i in range(len(stats['airline_counts']))]
     plt.figure(figsize=(10, 4))
-    sns.barplot(x=list(stats['airline_counts'].keys()), y=list(stats['airline_counts'].values()))
+    sns.barplot(x=list(stats['airline_counts'].keys()), y=list(stats['airline_counts'].values()), palette=colors)
     plt.title("Conversation Count per Airline", fontsize=14, fontweight="bold", color="#355C7D")
     plt.ylabel("Count")
     plt.xticks(rotation=45)
@@ -224,24 +223,21 @@ if stats['airline_counts']:
     plt.savefig("plots/airline_conversation_counts.png")
     plt.show()
 
-
-#Daily Avg Sentiment
+# Daily Avg Sentiment
 if stats['daily_sentiments']:
     df_trend = pd.DataFrame([
         {"date": d, "avg_sentiment": sum(scores)/len(scores), "count": len(scores)}
         for d, scores in stats['daily_sentiments'].items()
     ]).sort_values("date")
-
     plt.figure(figsize=(12, 4))
-    sns.lineplot(data=df_trend, x="date", y="avg_sentiment")
+    sns.lineplot(data=df_trend, x="date", y="avg_sentiment", color=custom_palette[4])
     plt.title("Daily Average Sentiment", fontsize=14, fontweight="bold", color="#355C7D")
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig("plots/daily_avg_sentiment.png")
     plt.show()
 
-
-#Conversation Lifespan Distribution
+# Conversation Lifespan Distribution
 print("Calculating conversation lifespans...")
 lifespans = []
 for batch in get_conversations_batch():
@@ -258,13 +254,11 @@ for batch in get_conversations_batch():
                 continue
 
 if lifespans:
-    clipped_lifespans = [x for x in lifespans if x <= 1440] #clip at 1440 mins (1 day)
-
+    clipped_lifespans = [x for x in lifespans if x <= 1440]
     plt.figure(figsize=(8, 4))
-    sns.histplot(clipped_lifespans, bins=50)
+    sns.histplot(clipped_lifespans, bins=50, color=custom_palette[3])
     plt.title("Conversation Lifespan Distribution (Clipped at 1 day)", fontsize=14, fontweight="bold", color="#355C7D")
     plt.xlabel("Lifespan (minutes)")
     plt.tight_layout()
     plt.savefig("plots/convo_lifespan_distribution.png")
     plt.show()
-
