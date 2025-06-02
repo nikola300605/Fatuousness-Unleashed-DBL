@@ -6,7 +6,17 @@ from dotenv import load_dotenv
 # Initialize MongoDB connection
 
 
-def get_documents_batch(batch_size=1000, collection='tweets_try', query = {}):
+def get_documents_batch(batch_size=1000, collection='tweets_try', query = {}, projection = {
+        '_id': False,
+        'created_at': True,
+        'id': True,
+        'user': True,
+        'in_reply_to_status_id': True,
+        'entities': True,
+        'lang': True,
+        'extended_tweet:': True,
+        'text': True
+    }):
     """
     Generator to yield batches of size 1000 documents from MongoDB.
     This function uses a projection to exclude certain fields from the documents. Change the projection as needed.
@@ -17,17 +27,6 @@ def get_documents_batch(batch_size=1000, collection='tweets_try', query = {}):
     client = MongoClient(database_url, connect=True, maxPoolSize=50)
     db = client.twitter_db
     collection = db[collection]
-    projection = {
-        '_id': False,
-        'created_at': True,
-        'id': True,
-        'user': True,
-        'in_reply_to_status_id': True,
-        'entities': True,
-        'lang': True,
-        'extended_tweet:': True,
-        'text': True
-    }
     cursor = collection.find(query, projection=projection, batch_size=batch_size, allow_disk_use=True)
     batch = []
 

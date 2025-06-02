@@ -3,10 +3,11 @@ from pymongo_interface import get_documents_batch
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
-""" from collections import Counter
+from itertools import chain
 import seaborn as sns
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter1d """
+from scipy.ndimage import gaussian_filter1d 
+from datetime import datetime
 
 
 
@@ -18,16 +19,19 @@ def get_top_languages(df):
 
 def main():
     i = 0
-    for batch in get_documents_batch():
-        df = process_batch(batch)
-        print(df.info())
+    df = pd.DataFrame()
+    for batch in get_documents_batch(collection="conversations", projection={'_id': False}):
+        batch_df = process_batch(batch)
+        if df.empty:
+            df = batch_df
+        else:
+            df = pd.concat([df, batch_df], ignore_index=True)
 
-        if i == 5:
-            break
-        i += 1
+       
     
+    conversations_eda(df)
     # Uncomment the following lines to enable multiprocessing
-    MAX_WORKERS = os.cpu_count() - 1 
+    """ MAX_WORKERS = os.cpu_count() - 1 
     with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
         i = 0
@@ -40,7 +44,70 @@ def main():
         for future in as_completed(futures):
             result = future.result()
 
-            print(result.info())
+            print(result.info()) """
+    
+def conversations_eda(df):
+    avg_conv_length = df['length'].mean()
+    print(f"Average conversation length: {avg_conv_length}")
+
+    ax = sns.histplot(df['length'], bins=10)
+    ax.set_title('Distribution of Conversation Lengths')
+    ax.set_xlabel('Conversation Length')
+    ax.set_ylabel('Frequency')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+    df['start_time'] = pd.to_datetime(df['thread'].apply(lambda x: x[0]['created_at']), format="%a %b %d %H:%M:%S %z %Y")
+    daily_convs = df.set_index('start_time').resample('D').size()
+
+    ax = sns.lineplot(x=daily_convs.index, y=daily_convs.values)
+    ax.set_title('Daily Conversation Counts')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Number of Conversations')
+    ax.legend(['Daily Conversations'])
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+    df['lifespan'] = df['thread'].apply(
+        lambda thread: (parse_tweet_time(thread[-1]['created_at']) - parse_tweet_time(thread[0]['created_at'])).total_seconds() / 60
+    )
+
+    ax = sns.histplot(df['lifespan'], bins=15)
+    ax.set_title('Distribution of Conversation Lifespan')
+    ax.set_xlabel('Lifespan (minutes)')
+    ax.set_ylabel('Frequency')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+
+def parse_tweet_time(time):
+    return datetime.strptime(time, "%a %b %d %H:%M:%S %z %Y")
+
+def sent_analysis_eda(df):
+    """ Perform exploratory data analysis on the tweets about the sentiment analysis """
+
+    all_tweets = list(chain.from_iterable(df['thread']))
+    labels = [tweet.get('sentiment', {}).get('label') for tweet in all_tweets if tweet.get('sentiment')]
+
+    sentiment_counts = pd.Series(labels).value_counts()
+    print(f"Sentiment distribution: {sentiment_counts}")
+    ax = sns.barplot(x=sentiment_counts.index, y=sentiment_counts.values, palette='Set2', hue=sentiment_counts.index)
+    ax.set_title('Sentiment Distribution')
+    ax.set_xlabel('Sentiment')
+    ax.set_ylabel('Counts')
+
+    plt.show()
+
+
+
+
+
+
+
     ############################################################################
 
     """ # Add new columns for analysis

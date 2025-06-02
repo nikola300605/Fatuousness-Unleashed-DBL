@@ -8,7 +8,7 @@ def main():
     for conv_batch in tqdm(mine_conversations(), desc="Processing conversation batches"):
         sent_batch = get_sentiment(conv_batch)
         save_conversations_to_mongo(sent_batch, 'conversations')
-
+    
 if __name__ == "__main__":
     start = time.time()
     main()

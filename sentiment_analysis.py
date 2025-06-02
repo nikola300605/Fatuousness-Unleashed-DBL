@@ -9,7 +9,7 @@ import torch
 tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-xlm-roberta-base-sentiment")
 model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-xlm-roberta-base-sentiment")
 
-nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer)
+nlp = pipeline('sentiment-analysis', model=model, tokenizer=tokenizer, top_k=None)
 
 def get_sentiment(batch):
     all_texts = []
@@ -50,3 +50,21 @@ plt.show() """
 # Average response time
 # Average response time per airline
 # Trends over time  
+
+tweet1 = "There is, I believe laws on how animals are transported. I am defeated, Your planes are filthy, your staff appears incapable of doing their jobs, and your customer service is non-existent."
+tweet2= "@British_Airways @Juggler90 Looks ok to me!"
+tweet3 = "@British_Airways I’ve just checked in online, it’s a American Airlines flight through BA. I’m travelling with my mum and she’s 80. I’m not sure if she’ll be able to walk the distance to the gate. Can you help us? Thanks."
+result = nlp([tweet1, tweet2, tweet3])
+results = []
+for i in range(len(result)):
+    final = {
+                'predicted_label': result[i][0]['label'],  # Top prediction
+                'scores': {
+                    'negative': round(next(r['score'] for r in result[i] if r['label'] == 'negative'), 2),
+                    'neutral': round(next(r['score'] for r in result[i] if r['label'] == 'neutral'), 2),
+                    'positive': round(next(r['score'] for r in result[i] if r['label'] == 'positive'), 2)
+                }
+            }
+    results.append(final)
+
+print("".join(f"result: {res}\n" for res in results))
