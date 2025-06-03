@@ -30,7 +30,18 @@ def create_id_map():
     # First pass: Collect IDs of tweets that are replied to
     reply_ids = set()
     print("Identifying potential parents...")
-    for batch in get_documents_batch(collection='tweets_try', query={'lang': {'$in': ["ar", "en", "fr", "de", "hi", "it", "sp", "pt"]}}):
+    for batch in get_documents_batch(collection='tweets_try', query={
+  'lang': {
+    '$in': [
+      "en", "pt", "sp", "ar", "ko", "ja", "id", "tl", "tr", "fr", "ru", "th", "it", "de",
+      "fa", "pl", "hi", "nl", "ht", "et", "ur", "ca", "sv", "fi", "el", "cs", "eu", "he", "ta",
+      "zh", "no", "da", "cy", "lv", "hu", "ro", "lt", "vi", "uk", "ne", "sl", "is", "sr", "ml",
+      "bn", "bg", "mr", "si", "te", "kn", "gu", "my", "am", "hy", "sd", "pa", "km", "ka", "lo",
+      "dv", "ug"
+    ]
+  }
+}
+):
         for tweet in batch:
             if 'deleted' in tweet:
                 continue
