@@ -28,7 +28,7 @@ def get_sentiment(batch):
 
     # Assign results back to tweets
     for tweet, result in zip(tweet_refs, results):
-        tweet['sentiment'] = {'label': result['label'], 'score': round(result['score'], 2)}
+        tweet['sentiment'] = {'label': result[0]['label'], 'score': round(result[0]['score'], 2)} # New model gives a list of all labels and their scores, so I just pick the top one
 
     return batch
             
