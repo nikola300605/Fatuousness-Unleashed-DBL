@@ -7,6 +7,7 @@ from time import time
 from pymongo_interface import save_conversations_to_mongo
 from datetime import datetime
 import numpy as np
+from bson import ObjectId
 
 load_dotenv()
 client = MongoClient(os.getenv("DATABASE_URL"))
@@ -205,114 +206,70 @@ def categorize_behavior(row):
         return 'Stable'
 
 
-def create_scores_dataframe(df_merged):
-
-    print("Creating scores DataFrame...")
-    
-    scores_df = df_merged.groupby('conversation_id').agg({
-        'airline': 'first',
-        'conversation_score': 'first',
-        'start_sent': 'first',
-        'end_sent': 'first',
-        'delta_sent': 'first',
-        'evolution_score': 'first',
-        'evolution_category': 'first',
-        'conversation_trajectory': 'first',
-        'sentiment_numerical': ['mean', 'std', 'min', 'max'],
-        'sentiment_score': ['mean', 'std'],
-        'tweet_index': 'max' 
-    }).reset_index()
-    
-    scores_df.columns = ['_'.join(col).strip() if col[1] else col[0] for col in scores_df.columns.values]
-    
-    # clarity renames
-    scores_df = scores_df.rename(columns={
-        'conversation_id': 'conversation_id',
-        'airline_first': 'airline',
-        'conversation_score_first': 'conversation_score',
-        'start_sent_first': 'start_sent',
-        'end_sent_first': 'end_sent',
-        'delta_sent_first': 'delta_sent',
-        'evolution_score_first': 'evolution_score',
-        'evolution_category_first': 'evolution_category',
-        'conversation_trajectory_first': 'conversation_trajectory',
-        'tweet_index_max': 'total_tweets'
-    })
-    
-    #cooked a bit too much
-    #scores_df['computed_at'] = datetime.now()
-    
-    print(f"Scores DataFrame created with {len(scores_df)} conversations")
-    return scores_df
-
-
-def store_results_to_mongodb(scores_df, df_merged):
-
+def store_results_to_mongodb(df_convo: pd.DataFrame, collection):
+    '''Updates each conversation document with precomputed metrics'''
     print("Storing results to MongoDB...")
-    
-    scores_collection = db.conversation_scores
-    scores_records = scores_df.to_dict('records')
-    
-    scores_collection.delete_many({})
-    result = scores_collection.insert_many(scores_records)
-    
-    print(f"Inserted {len(result.inserted_ids)} conversation scores to MongoDB")
-    print("Updating original conversations with computed metrics...")
-    
+
     updates_count = 0
-    for _, row in scores_df.iterrows():
-        conversation_id = row['conversation_id']
+
+    for _, row in df_convo.iterrows():
+        try:
+            conversation_id = ObjectId(row['conversation_id'])  # Convert back to ObjectId -> wasn't storing because id is a string
+        except Exception as e:
+            print(f"Skipping invalid ID: {row['conversation_id']}")
+            continue
         update_data = {
             'conversation_score': row['conversation_score'],
+            'delta_sent': row['delta_sent'],
             'evolution_score': row['evolution_score'],
             'evolution_category': row['evolution_category'],
             'conversation_trajectory': row['conversation_trajectory'],
-            'delta_sent': row['delta_sent'],
-            #'computed_at': row['computed_at'] #the cooking from before
+            # Optional: 'computed_at': datetime.now()
         }
-        
+
         result = collection.update_one(
             {'_id': conversation_id},
             {'$set': {'computed_metrics': update_data}}
         )
-        
+
         if result.modified_count > 0:
             updates_count += 1
-    
-    print(f"Updated {updates_count} conversation documents with computed metrics")
+
+    print(f"Updated {updates_count} conversation documents with computed metrics.")
     return True
 
 
 
 if __name__ == "__main__":
-
     start_time = time()
+
+    # Load tweet-level data
     df = load_and_prepare_data()
 
-    scores_conv_sc = df.groupby('conversation_id', group_keys=False).apply(compute_conversation_score).reset_index()
-    scores_conv_sc.columns = ['conversation_id', 'conversation_score']
+    # Compute conversation-level scores
+    scores_conv_sc = df.groupby('conversation_id', group_keys=False)[df.columns]\
+                   .apply(compute_conversation_score)\
+                   .reset_index(name='conversation_score')
 
-    df_merged = df.merge(scores_conv_sc, on='conversation_id', how='left')
+    scores_delta = df.groupby('conversation_id', group_keys=False)[df.columns]\
+                 .apply(compute_delta_score)\
+                 .reset_index()
+    #changed as to not give depriciation warning
 
-    scores_delta = df.groupby('conversation_id', group_keys=False).apply(compute_delta_score).reset_index()
-    scores_delta.columns = ['conversation_id', 'start_sent', 'end_sent', 'delta_sent']
-
-    df_merged = df_merged.merge(scores_delta, on='conversation_id', how='left')
-
-    df_merged['evolution_score'] = df_merged['conversation_score']*0.7 + df_merged['delta_sent']*0.3
+    # Merge convo-level scores into a single conversation-level DataFrame
+    df_convo = scores_conv_sc.merge(scores_delta, on='conversation_id')
+    df_convo['evolution_score'] = df_convo['conversation_score'] * 0.7 + df_convo['delta_sent'] * 0.3
 
     bins = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]
     labels = ['Very Negative', 'Negative', 'Neutral', 'Positive', 'Very Positive']
-    df_merged['evolution_category'] = pd.cut(df_merged['evolution_score'], bins=bins, labels=labels)
+    df_convo['evolution_category'] = pd.cut(df_convo['evolution_score'], bins=bins, labels=labels)
 
-    df_merged['conversation_trajectory'] = df_merged.apply(categorize_behavior, axis=1)
+    df_convo['conversation_trajectory'] = df_convo.apply(categorize_behavior, axis=1)
 
-    scores_df = create_scores_dataframe(df_merged)
-    
-    store_results_to_mongodb(scores_df, df_merged)
+    # Store conversation-level metrics into MongoDB
+    store_results_to_mongodb(df_convo, collection)
 
     end_time = time()
     print(f"Data processing completed in {end_time - start_time:.2f} seconds.")
-    print(f"Results stored in MongoDB. Scores DataFrame shape: {scores_df.shape}")
-    print(scores_df.head(10))
- 
+    print(f"Results stored in MongoDB. Processed {df_convo.shape[0]} conversations.")
+    print(df_convo.head(10))
