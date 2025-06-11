@@ -5,6 +5,8 @@ import pandas as pd
 import os
 from time import time
 from pymongo_interface import save_conversations_to_mongo
+from datetime import datetime
+import numpy as np
 
 load_dotenv()
 client = MongoClient(os.getenv("DATABASE_URL"))
@@ -202,6 +204,86 @@ def categorize_behavior(row):
     else:
         return 'Stable'
 
+
+def create_scores_dataframe(df_merged):
+
+    print("Creating scores DataFrame...")
+    
+    scores_df = df_merged.groupby('conversation_id').agg({
+        'airline': 'first',
+        'conversation_score': 'first',
+        'start_sent': 'first',
+        'end_sent': 'first',
+        'delta_sent': 'first',
+        'evolution_score': 'first',
+        'evolution_category': 'first',
+        'conversation_trajectory': 'first',
+        'sentiment_numerical': ['mean', 'std', 'min', 'max'],
+        'sentiment_score': ['mean', 'std'],
+        'tweet_index': 'max' 
+    }).reset_index()
+    
+    scores_df.columns = ['_'.join(col).strip() if col[1] else col[0] for col in scores_df.columns.values]
+    
+    # clarity renames
+    scores_df = scores_df.rename(columns={
+        'conversation_id': 'conversation_id',
+        'airline_first': 'airline',
+        'conversation_score_first': 'conversation_score',
+        'start_sent_first': 'start_sent',
+        'end_sent_first': 'end_sent',
+        'delta_sent_first': 'delta_sent',
+        'evolution_score_first': 'evolution_score',
+        'evolution_category_first': 'evolution_category',
+        'conversation_trajectory_first': 'conversation_trajectory',
+        'tweet_index_max': 'total_tweets'
+    })
+    
+    #cooked a bit too much
+    #scores_df['computed_at'] = datetime.now()
+    
+    print(f"Scores DataFrame created with {len(scores_df)} conversations")
+    return scores_df
+
+
+def store_results_to_mongodb(scores_df, df_merged):
+
+    print("Storing results to MongoDB...")
+    
+    scores_collection = db.conversation_scores
+    scores_records = scores_df.to_dict('records')
+    
+    scores_collection.delete_many({})
+    result = scores_collection.insert_many(scores_records)
+    
+    print(f"Inserted {len(result.inserted_ids)} conversation scores to MongoDB")
+    print("Updating original conversations with computed metrics...")
+    
+    updates_count = 0
+    for _, row in scores_df.iterrows():
+        conversation_id = row['conversation_id']
+        update_data = {
+            'conversation_score': row['conversation_score'],
+            'evolution_score': row['evolution_score'],
+            'evolution_category': row['evolution_category'],
+            'conversation_trajectory': row['conversation_trajectory'],
+            'delta_sent': row['delta_sent'],
+            #'computed_at': row['computed_at'] #the cooking from before
+        }
+        
+        result = collection.update_one(
+            {'_id': conversation_id},
+            {'$set': {'computed_metrics': update_data}}
+        )
+        
+        if result.modified_count > 0:
+            updates_count += 1
+    
+    print(f"Updated {updates_count} conversation documents with computed metrics")
+    return True
+
+
+
 if __name__ == "__main__":
 
     start_time = time()
@@ -225,7 +307,12 @@ if __name__ == "__main__":
 
     df_merged['conversation_trajectory'] = df_merged.apply(categorize_behavior, axis=1)
 
+    scores_df = create_scores_dataframe(df_merged)
+    
+    store_results_to_mongodb(scores_df, df_merged)
+
     end_time = time()
     print(f"Data processing completed in {end_time - start_time:.2f} seconds.")
-    print(df_merged.head(10))
+    print(f"Results stored in MongoDB. Scores DataFrame shape: {scores_df.shape}")
+    print(scores_df.head(10))
  
