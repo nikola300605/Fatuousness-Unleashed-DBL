@@ -211,7 +211,7 @@ class SentimentVisualizer:
 
     def plot_sentiment_by_airline_and_role(self):
         fig, ax = plt.subplots(figsize=(10, 6))
-        grouped = self.df_merged.groupby(['airline', 'role'])['sentiment_score'].mean().unstack()
+        grouped = self.scores_df.groupby(['airline', 'role'])['evolution_score'].mean().unstack()
         grouped.plot(kind='bar', ax=ax)
         ax.set_title("Average Sentiment Score by Role and Airline")
         ax.set_ylabel("Avg Sentiment Score")
