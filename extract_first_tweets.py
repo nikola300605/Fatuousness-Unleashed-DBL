@@ -1,6 +1,10 @@
 from pymongo import MongoClient
 import json
 
+client = MongoClient("mongodb://localhost:27017")
+db = client["twitter_db"]
+collection = db["conversations"]
+
 output = []
 
 for convo in collection.find({}):
@@ -13,7 +17,7 @@ for convo in collection.find({}):
     all_texts = [msg["text"] for msg in thread]
 
     output.append({
-        "converstion_id": str(convo["_id"]),
+        "conversation_id": str(convo["_id"]),
         "airline": convo.get("airline", None),
         "first_tweet": first_tweet,
         "full_convo": all_texts,
