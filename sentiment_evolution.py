@@ -227,5 +227,7 @@ if __name__ == "__main__":
 
     end_time = time()
     print(f"Data processing completed in {end_time - start_time:.2f} seconds.")
-    print(df_merged.head(10))
+    print(df_merged.head())
+    print(df_merged.info())
+    print(df_merged.columns)
  
