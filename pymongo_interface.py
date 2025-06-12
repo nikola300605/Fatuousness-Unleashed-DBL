@@ -61,3 +61,26 @@ def save_conversations_to_mongo(conversations, collection_name='conversation_thr
         print(f"Saved {len(conversations)} conversation threads to MongoDB collection '{collection_name}'")
     else:
         print("No conversations to save.")
+
+from pymongo import MongoClient
+import pandas as pd
+from datetime import datetime, timedelta
+
+def get_conversations_by_month(db_name, collection_name, year, month, uri="mongodb://localhost:27017/"):
+    client = MongoClient(uri)
+    db = client[db_name]
+    collection = db[collection_name]
+
+    start_date = datetime(year, month, 1)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1)
+    else:
+        end_date = datetime(year, month + 1, 1)
+
+    conversations = list(collection.find({
+        "start_date": {"$gte": start_date, "$lt": end_date}
+    }))
+
+    df = pd.DataFrame(conversations)
+
+    return df
