@@ -19,6 +19,23 @@ SENTIMENT_MAP = {
     "neutral": 0.1,
     "negative": -1
 }
+
+AIRLINE_NAME_MAP = {
+    "AmericanAir": "AmericanAir",
+    "British_Airways": "British_Airways",
+    "EtihadAirways": "EtihadAirways",
+    "ethihad": "EtihadAirways",        
+    "KLM": "KLM",
+    "Qantas": "Qantas",
+    "Ryanair": "Ryanair",
+    "SingaporeAir": "SingaporeAir",
+    "VirginAtlantic": "VirginAtlantic",
+    "AirFrance": "AirFrance",
+    "easyjet": "easyJet",
+    "lufthansa": "Lufthansa",
+}
+
+
 def get_sentiment_value(label, confidence):
     if label == "positive":
         return 1  # 0-1 range
@@ -51,6 +68,7 @@ def load_and_prepare_data():
 
     for doc in cursor:
         airline = doc.get("airline")
+        airline = AIRLINE_NAME_MAP.get(airline, AIRLINE_NAME_MAP.get(airline.lower(), airline))
         thread = doc.get("thread", [])
         if not isinstance(thread, list):
             continue
@@ -130,7 +148,10 @@ def compute_conversation_score(group: pd.DataFrame):
     
     # Normalize to [-1, 1] range
     conv_sentiment = total_weighted_sentiment / max_possible_weight if max_possible_weight > 0 else 0
-    return (round(conv_sentiment, 2))
+    return pd.Series({
+        "conversation_score": round(conv_sentiment, 2),
+        "airline": airline
+    })
 
 def compute_trend_score(group: pd.DataFrame):
     sorted_group = group.sort_values(by='tweet_index')
@@ -231,7 +252,11 @@ def store_results_to_mongodb(df_convo: pd.DataFrame, collection):
 
         result = collection.update_one(
             {'_id': conversation_id},
-            {'$set': {'computed_metrics': update_data}}
+            {
+                '$set': {'computed_metrics': update_data,
+                         'airline': row['airline']
+                         }
+            }
         )
 
         if result.modified_count > 0:
@@ -251,7 +276,7 @@ if __name__ == "__main__":
     # Compute conversation-level scores
     scores_conv_sc = df.groupby('conversation_id', group_keys=False)[df.columns]\
                    .apply(compute_conversation_score)\
-                   .reset_index(name='conversation_score')
+                   .reset_index()
 
     scores_delta = df.groupby('conversation_id', group_keys=False)[df.columns]\
                  .apply(compute_delta_score)\
