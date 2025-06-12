@@ -5,6 +5,9 @@ import pandas as pd
 import os
 from time import time
 from pymongo_interface import save_conversations_to_mongo
+from datetime import datetime
+import numpy as np
+from bson import ObjectId
 
 load_dotenv()
 client = MongoClient(os.getenv("DATABASE_URL"))
@@ -127,7 +130,7 @@ def compute_conversation_score(group: pd.DataFrame):
     
     # Normalize to [-1, 1] range
     conv_sentiment = total_weighted_sentiment / max_possible_weight if max_possible_weight > 0 else 0
-    return conv_sentiment
+    return (round(conv_sentiment, 2))
 
 def compute_trend_score(group: pd.DataFrame):
     sorted_group = group.sort_values(by='tweet_index')
@@ -190,7 +193,7 @@ def compute_delta_score(group: pd.DataFrame):
     return pd.Series({
         'start_sent': start_sent,
         'end_sent':   end_sent,
-        'delta_sent': delta_sent
+        'delta_sent': round(delta_sent, 2)
     })
 
 def categorize_behavior(row):
@@ -202,32 +205,73 @@ def categorize_behavior(row):
     else:
         return 'Stable'
 
-if __name__ == "__main__":
 
+def store_results_to_mongodb(df_convo: pd.DataFrame, collection):
+    '''Updates each conversation document with precomputed metrics'''
+    print("Storing results to MongoDB...")
+
+    updates_count = 0
+
+    for _, row in df_convo.iterrows():
+        try:
+            conversation_id = ObjectId(row['conversation_id'])  # Convert back to ObjectId -> wasn't storing because id is a string
+        except Exception as e:
+            print(f"Skipping invalid ID: {row['conversation_id']}")
+            continue
+        update_data = {
+            'conversation_score': row['conversation_score'],
+            'delta_sent': row['delta_sent'],
+            'evolution_score': row['evolution_score'],
+            'evolution_category': row['evolution_category'],
+            'conversation_trajectory': row['conversation_trajectory'],
+            'start_sent': row['start_sent'],
+            'end_sent': row['end_sent'],
+            # Optional: 'computed_at': datetime.now()
+        }
+
+        result = collection.update_one(
+            {'_id': conversation_id},
+            {'$set': {'computed_metrics': update_data}}
+        )
+
+        if result.modified_count > 0:
+            updates_count += 1
+
+    print(f"Updated {updates_count} conversation documents with computed metrics.")
+    return True
+
+
+
+if __name__ == "__main__":
     start_time = time()
+
+    # Load tweet-level data
     df = load_and_prepare_data()
 
-    scores_conv_sc = df.groupby('conversation_id', group_keys=False).apply(compute_conversation_score).reset_index()
-    scores_conv_sc.columns = ['conversation_id', 'conversation_score']
+    # Compute conversation-level scores
+    scores_conv_sc = df.groupby('conversation_id', group_keys=False)[df.columns]\
+                   .apply(compute_conversation_score)\
+                   .reset_index(name='conversation_score')
 
-    df_merged = df.merge(scores_conv_sc, on='conversation_id', how='left')
+    scores_delta = df.groupby('conversation_id', group_keys=False)[df.columns]\
+                 .apply(compute_delta_score)\
+                 .reset_index()
+    #changed as to not give depriciation warning
 
-    scores_delta = df.groupby('conversation_id', group_keys=False).apply(compute_delta_score).reset_index()
-    scores_delta.columns = ['conversation_id', 'start_sent', 'end_sent', 'delta_sent']
-
-    df_merged = df_merged.merge(scores_delta, on='conversation_id', how='left')
-
-    df_merged['evolution_score'] = df_merged['conversation_score']*0.7 + df_merged['delta_sent']*0.3
+    # Merge convo-level scores into a single conversation-level DataFrame
+    df_convo = scores_conv_sc.merge(scores_delta, on='conversation_id')
+    df_convo['evolution_score'] = round((df_convo['conversation_score'] * 0.7 + df_convo['delta_sent'] * 0.3), 2)
 
     bins = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]
     labels = ['Very Negative', 'Negative', 'Neutral', 'Positive', 'Very Positive']
-    df_merged['evolution_category'] = pd.cut(df_merged['evolution_score'], bins=bins, labels=labels)
+    df_convo['evolution_category'] = pd.cut(df_convo['evolution_score'], bins=bins, labels=labels)
 
-    df_merged['conversation_trajectory'] = df_merged.apply(categorize_behavior, axis=1)
+    df_convo['conversation_trajectory'] = df_convo.apply(categorize_behavior, axis=1)
+
+    # Store conversation-level metrics into MongoDB
+    store_results_to_mongodb(df_convo, collection)
 
     end_time = time()
     print(f"Data processing completed in {end_time - start_time:.2f} seconds.")
-    print(df_merged.head())
-    print(df_merged.info())
-    print(df_merged.columns)
- 
+    print(f"Results stored in MongoDB. Processed {df_convo.shape[0]} conversations.")
+    print(df_convo.head(10))
