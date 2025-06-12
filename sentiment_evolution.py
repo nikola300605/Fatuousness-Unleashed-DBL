@@ -130,7 +130,7 @@ def compute_conversation_score(group: pd.DataFrame):
     
     # Normalize to [-1, 1] range
     conv_sentiment = total_weighted_sentiment / max_possible_weight if max_possible_weight > 0 else 0
-    return conv_sentiment
+    return (round(conv_sentiment, 2))
 
 def compute_trend_score(group: pd.DataFrame):
     sorted_group = group.sort_values(by='tweet_index')
@@ -193,7 +193,7 @@ def compute_delta_score(group: pd.DataFrame):
     return pd.Series({
         'start_sent': start_sent,
         'end_sent':   end_sent,
-        'delta_sent': delta_sent
+        'delta_sent': round(delta_sent, 2)
     })
 
 def categorize_behavior(row):
@@ -224,6 +224,8 @@ def store_results_to_mongodb(df_convo: pd.DataFrame, collection):
             'evolution_score': row['evolution_score'],
             'evolution_category': row['evolution_category'],
             'conversation_trajectory': row['conversation_trajectory'],
+            'start_sent': row['start_sent'],
+            'end_sent': row['end_sent'],
             # Optional: 'computed_at': datetime.now()
         }
 
@@ -258,7 +260,7 @@ if __name__ == "__main__":
 
     # Merge convo-level scores into a single conversation-level DataFrame
     df_convo = scores_conv_sc.merge(scores_delta, on='conversation_id')
-    df_convo['evolution_score'] = df_convo['conversation_score'] * 0.7 + df_convo['delta_sent'] * 0.3
+    df_convo['evolution_score'] = round((df_convo['conversation_score'] * 0.7 + df_convo['delta_sent'] * 0.3), 2)
 
     bins = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]
     labels = ['Very Negative', 'Negative', 'Neutral', 'Positive', 'Very Positive']
