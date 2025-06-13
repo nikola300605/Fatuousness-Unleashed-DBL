@@ -610,6 +610,15 @@ class SentimentVisualizer:
         
         self.save_plot(fig, "conversation_count_by_airline")
 
+    def plot_sentiment_by_airline_and_role(self):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        grouped = self.scores_df.groupby(['airline', 'role'])['evolution_score'].mean().unstack()
+        grouped.plot(kind='bar', ax=ax)
+        ax.set_title("Average Sentiment Score by Role and Airline")
+        ax.set_ylabel("Avg Sentiment Score")
+        ax.set_xlabel("Airline")
+        ax.legend(title="Role")
+        self.save_plot(fig, "avg_sentiment_score_by_airline_and_role")
 
     def plot_trend_distribution(self):
         if 'trend_score' in self.scores_df.columns:

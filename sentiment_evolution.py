@@ -24,7 +24,7 @@ AIRLINE_NAME_MAP = {
     "AmericanAir": "AmericanAir",
     "British_Airways": "British_Airways",
     "EtihadAirways": "EtihadAirways",
-    "ethihad": "EtihadAirways",        
+    "etihad": "EtihadAirways",        
     "KLM": "KLM",
     "Qantas": "Qantas",
     "Ryanair": "Ryanair",
@@ -66,6 +66,7 @@ def load_and_prepare_data():
 
     rows = []
 
+
     for doc in cursor:
         airline = doc.get("airline")
         airline = AIRLINE_NAME_MAP.get(airline, AIRLINE_NAME_MAP.get(airline.lower(), airline))
@@ -78,6 +79,7 @@ def load_and_prepare_data():
             sentiment = tweet.get("sentiment", {})
             label = sentiment.get("label", "").lower()
             score = sentiment.get("score")
+
 
             if label in SENTIMENT_MAP and score is not None and screen_name and airline:
                 role = "support" if screen_name.lower() == airline.lower() else "user"
@@ -96,6 +98,43 @@ def load_and_prepare_data():
 
     print(f"Loaded {len(rows)} tweets.")
     return pd.DataFrame(rows)
+
+def add_response_times_to_conversations(collection):
+    print("Adding response times to each tweet in conversations...")
+
+    cursor = collection.find({}, {"thread.created_at": 1})
+    updated_count = 0
+
+    for doc in cursor:
+        thread = doc.get("thread", [])
+        if not isinstance(thread, list) or len(thread) < 2:
+            continue
+
+        updates = []
+        for i in range(1, len(thread)):
+            try:
+                t1 = parser.parse(thread[i - 1]['created_at'])
+                t2 = parser.parse(thread[i]['created_at'])
+                delta = (t2 - t1).total_seconds() / 60
+                # Prepare update for this tweet
+                updates.append((i, delta))
+            except Exception:
+                updates.append((i, None))
+
+        # Build the update query for all tweets in this thread
+        update_query = {}
+        for idx, delta in updates:
+            update_query[f"thread.{idx}.response_time"] = delta
+
+        if update_query:
+            result = collection.update_one(
+                {"_id": doc["_id"]},
+                {"$set": update_query}
+            )
+            if result.modified_count > 0:
+                updated_count += 1
+
+    print(f"Added response times to {updated_count} conversation documents.")
 
 def exponential_decay_weight(min_weight, decay_rate, tweet_index, max_index):
     '''Calculates a weight based on exponential decay for tweet position'''
@@ -269,6 +308,8 @@ def store_results_to_mongodb(df_convo: pd.DataFrame, collection):
 
 if __name__ == "__main__":
     start_time = time()
+
+    add_response_times_to_conversations(collection)
 
     # Load tweet-level data
     df = load_and_prepare_data()
