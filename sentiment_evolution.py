@@ -192,7 +192,7 @@ def compute_conversation_score(group: pd.DataFrame):
         "airline": airline
     })
 
-def compute_trend_score(group: pd.DataFrame):
+""" def compute_trend_score(group: pd.DataFrame):
     sorted_group = group.sort_values(by='tweet_index')
     n = len(sorted_group)
 
@@ -232,19 +232,28 @@ def compute_trend_score(group: pd.DataFrame):
         denominator += x_sq_diff
     
     trend_slope = numerator / denominator if denominator != 0 else 0
-    return trend_slope
+    return trend_slope """
 def compute_delta_score(group: pd.DataFrame):
-    sorted_group = group.sort_values(by='tweet_index')
+    user_tweets = group[group['role'] == 'user']
+    sorted_group = user_tweets.sort_values(by='tweet_index')
 
     max_index = sorted_group['tweet_index'].max()
     if max_index == 0:
         return 1
     
+    if len(user_tweets) < 2:
+        return pd.Series({
+            'start_sent': None,  # or 0, depending on your preference
+            'end_sent': None,
+            'delta_sent': None,
+            'insufficient_data': True  # Flag to identify these cases
+        })
+    
     start_sent_unweighted = sorted_group.iloc[0]['sentiment_numerical']
     start_score = sorted_group.iloc[0]['sentiment_score']
 
-    end_sent_unweighted = sorted_group[sorted_group['role'] == 'user'].iloc[-1]['sentiment_numerical']
-    end_score = sorted_group[sorted_group['role'] == 'user'].iloc[-1]['sentiment_score']
+    end_sent_unweighted = sorted_group.iloc[-1]['sentiment_numerical']
+    end_score = sorted_group.iloc[-1]['sentiment_score']
 
     start_sent = start_sent_unweighted * start_score
     end_sent = end_sent_unweighted * end_score

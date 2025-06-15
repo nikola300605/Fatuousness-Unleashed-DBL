@@ -826,8 +826,200 @@ class SentimentVisualizer:
 
 
         self.save_plot(ax.get_figure(), "initial_delta_sent_vs_response_time")
+    
+    def plot_evolution_score_distribution(self):
+        fig,ax = plt.subplots(figsize=(12, 4))
+
+        sns.histplot(data=self.scores_df['evolution_score'], kde=True, bins=30, color=self.custom_colors[0], ax=ax)
+        ax.set_title("Evolution Score Distribution")
+        ax.set_xlabel("Evolution Score")
+        ax.set_ylabel("Frequency")
+        ax.axvline(0, color='red', linestyle='--', label='Neutral Score (0)')
+        ax.legend()
+
+        self.save_plot(fig, "evolution_score_distribution")
             
+    def plot_convo_length_vs_evolution_patterns(self):
+        fig,ax = plt.subplots(figsize=(16, 8), nrows=1, ncols=2)
+
+        length_bins = [0, 3, 7, 12, 20, float('inf')]
+        labels = ['Very Short (1-3)', 'Short (4-7)', 'Medium (8-12)', 
+                                'Long (12-20)', 'Very Long (20+)']
         
+        df_len = self.scores_df.copy()
+        df_len['length_bin'] = pd.cut(df_len['total_tweets'], bins=length_bins, labels=labels)
+
+        sns.boxplot(data=df_len, x='length_bin', y='evolution_score', ax=ax[0], palette=self.custom_colors[:5])
+        ax[0].set_title("Evolution Score by Conversation Length")
+        plt.xticks(rotation=45)
+        
+
+        len_stats = df_len.groupby('length_bin')[['conversation_score', 'delta_sent','evolution_score']].mean()
+        len_stats.plot(kind='bar', ax=ax[1], color=self.custom_colors[:5])
+        ax[1].set_title("Average Scores by Length")
+        ax[1].set_ylim(-0.6,0.6)
+        plt.xticks(rotation=45)
+
+        self.save_plot(fig, "convo_length_vs_evolution_patterns")
+
+    def plot_sentiment_journey(self):
+        fig,ax = plt.subplots(figsize=(12, 6))   
+        """ sns.scatterplot(data=self.scores_df, x='start_sent', y='end_sent', hue='evolution_score', ax=ax) """
+        plt.scatter(self.scores_df['start_sent'], self.scores_df['end_sent'], alpha=0.6, c=self.scores_df['evolution_score'], 
+           cmap='RdYlBu', s=50)
+        plt.colorbar(label='Evolution Score')
+        plt.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        plt.axvline(x=0, color='black', linestyle='--', alpha=0.5)
+        plt.xlabel('Start Sentiment')
+        plt.ylabel('End Sentiment')
+        plt.title('Conversation Sentiment Trajectories')
+
+        # Add quadrant labels
+        plt.text(0.5, 0.5, 'Positive→Positive\n(Maintained)', ha='center', va='center', 
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgreen", alpha=0.5))
+        plt.text(-0.5, 0.5, 'Negative→Positive\n(Improved)', ha='center', va='center',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.5))
+        plt.text(0.5, -0.5, 'Positive→Negative\n(Deteriorated)', ha='center', va='center',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightcoral", alpha=0.5))
+        plt.text(-0.5, -0.5, 'Negative→Negative\n(Persisted)', ha='center', va='center',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.5))
+        
+        self.save_plot(fig, "sentiment_journey")
+
+    def plot_comparative_analysis(self):
+        
+        fig,ax = plt.subplots(figsize=(16, 8))
+        success_rate = self.scores_df.groupby('airline')['evolution_score'].apply(lambda x: (x > 0).mean())
+        sns.barplot(data=success_rate.reset_index(), x='airline', y='evolution_score', ax=ax, palette=self.custom_colors)
+        ax.set_title("Success Rate by Airline")
+        ax.set_xlabel("Airline")
+        ax.set_ylabel("Success Rate")
+
+        self.save_plot(fig, "comparative_analysis_success_rate")
+
+        fig, ax = plt.subplots(figsize=(16, 8))
+        avg_length = self.scores_df.groupby('airline')['total_tweets'].mean()
+        sns.barplot(data=avg_length.reset_index(), x='airline', y='total_tweets', ax=ax, palette=self.custom_colors)
+        ax.set_title("Average Conversation Length by Airline")
+        ax.set_xlabel("Airline")
+        ax.set_ylabel("Average Length (Tweets)")
+
+        self.save_plot(fig, "comparative_analysis_avg_length")
+
+        fig, ax = plt.subplots(figsize=(16, 8))
+        components_avg = self.scores_df.groupby('airline')[['conversation_score', 'delta_sent']].mean()
+        components_avg.plot(kind='bar', ax=ax)
+        ax.set_title("Average Conversation Components by Airline")
+        ax.set_xlabel("Airline")
+        ax.legend(['Conversation Score', 'Delta Sentiment'])
+
+        self.save_plot(fig, "comparative_analysis_airlines")
+    
+    def plot_score_drivers(self):
+        fig,ax = plt.subplots(figsize=(12, 6))
+
+        correlation_matrix = self.scores_df[['conversation_score', 'delta_sent', 'evolution_score', 
+                                'start_sent', 'end_sent', 'total_tweets']].corr()
+        
+        sns.heatmap(correlation_matrix, annot=True, cmap='RdYlBu', center=0, 
+                    square=True, fmt='.3f', ax=ax)
+        plt.title('Score Component Correlations')
+        self.save_plot(fig, "score_drivers_correlation_heatmap")
+
+        # Individual component distributions
+        fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+        axes = axes.flatten()
+
+        components = ['conversation_score', 'delta_sent', 'start_sent', 'end_sent', 'evolution_score']
+        for i, component in enumerate(components):
+            axes[i].hist(self.scores_df[component], bins=30, alpha=0.7, edgecolor='black')
+            axes[i].set_title(f'{component.replace("_", " ").title()} Distribution')
+            axes[i].axvline(self.scores_df[component].mean(), color='red', linestyle='--', label='Mean')
+            axes[i].legend()
+
+        axes[5].axis('off')  # Hide the last subplot
+        plt.tight_layout()
+        self.save_plot(fig, "score_drivers_component_distributions")
+
+
+    def plot_extreme_cases(self):
+        extreme_cases = pd.DataFrame({
+            'Best Improvement': [self.scores_df.loc[self.scores_df['evolution_score'].idxmax(), 'evolution_score']],
+            'Worst Deterioration': [self.scores_df.loc[self.scores_df['evolution_score'].idxmin(), 'evolution_score']],
+            'Highest Start Negative': [self.scores_df.loc[self.scores_df['start_sent'].idxmin(), 'start_sent']],
+            'Biggest Turnaround': [self.scores_df.loc[self.scores_df['delta_sent'].idxmax(), 'delta_sent']],
+            'Biggest Decline': [self.scores_df.loc[self.scores_df['delta_sent'].idxmin(), 'delta_sent']]
+        })
+
+        print("Extreme Cases for Manual Review:")
+        print(extreme_cases)
+
+        # Scatter plot highlighting outliers
+        fig,ax = plt.subplots(figsize=(12, 8))
+        sc = ax.scatter(
+            self.scores_df['conversation_score'],
+            self.scores_df['delta_sent'],
+            alpha=0.6,
+            s=self.scores_df['total_tweets'] * 2,
+            c=self.scores_df['evolution_score'],
+            cmap='RdYlBu'
+        )
+        
+        plt.colorbar(sc, ax=ax, label='Evolution Score')
+        ax.set_xlabel('Conversation Score')
+        ax.set_ylabel('Delta Sentiment')
+        ax.set_title('Component Relationship (Size = Conversation Length)')
+
+        self.save_plot(fig, "extreme_cases_scatter_plot_1")
+
+        # Highlight extreme cases
+        extremes = [self.scores_df['evolution_score'].idxmax(), self.scores_df['evolution_score'].idxmin(), 
+           self.scores_df['delta_sent'].idxmax(), self.scores_df['delta_sent'].idxmin(), self.scores_df['conversation_score'].idxmax(),
+             self.scores_df['conversation_score'].idxmin()]
+        
+        fig, ax = plt.subplots(figsize=(12, 8))
+        df_with_extremes = pd.DataFrame(columns=['conversation_id', 'conversation_score', 'delta_sent', 'evolution_score'])
+        for i,idx in enumerate(extremes):
+            sc = ax.scatter(
+                self.scores_df.loc[idx, 'conversation_score'],
+                self.scores_df.loc[idx, 'delta_sent'],
+                s=200,
+                c= self.scores_df.loc[idx, 'evolution_score'],
+                vmin=-1.0,
+                vmax=1.0,
+                cmap='RdYlBu',
+                edgecolor='black',
+            )
+            
+
+            df_with_extremes.loc[i] = [self.scores_df.loc[idx, 'conversation_id'], self.scores_df.loc[idx, 'conversation_score'],
+                self.scores_df.loc[idx, 'delta_sent'], self.scores_df.loc[idx, 'evolution_score']]
+        plt.colorbar(sc, ax=ax, label='Evolution Score')    
+        ax.set_xlabel('Conversation Score')
+        ax.set_ylabel('Delta Sentiment')
+        ax.set_title('Extreme Cases Highlighted in Scatter Plot')
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+        self.save_plot(fig, "extreme_cases_scatter_plot_2")
+        print(df_with_extremes)
+        
+    
+    def plot_different_evo_score_weights(self):
+        fig, ax = plt.subplots(figsize=(12, 6), nrows=2, ncols=2)
+        for i, weight in enumerate([0.5, 0.6, 0.8, 0.9]):
+            alternative_score = weight * self.scores_df['conversation_score'] + (1-weight) * self.scores_df['delta_sent']
+            sns.scatterplot(x=self.scores_df['evolution_score'],y=alternative_score, ax=ax[i//2][i%2], alpha=0.6)
+            ax[i//2][i%2].plot([self.scores_df['evolution_score'].min(), self.scores_df['evolution_score'].max()], 
+             [self.scores_df['evolution_score'].min(), self.scores_df['evolution_score'].max()], 'r--')
+            
+            ax[i//2][i%2].set_title(f"Evolution Score vs Alternative Score (Weight: {weight})")
+            ax[i//2][i%2].set_xlabel("Current Evolution Score")
+            ax[i//2][i%2].set_ylabel("Alternative Evolution Score")
+
+            correlation = self.scores_df['evolution_score'].corr(alternative_score)
+            plt.text(0.05, 0.95, f'r = {correlation:.3f}', transform=plt.gca().transAxes)
+
+        self.save_plot(fig, "evolution_score_weights_comparison")
     def create_all_visualizations(self):
         self.plot_evolution_score_distribution()
         self.plot_evolution_category_distribution()
@@ -846,10 +1038,16 @@ class SentimentVisualizer:
         self.plot_sentiment_over_time_by_airline(aggregation='week')
         self.plot_delta_sent_against_response_time()
         self.plot_mean_initial_sentiment_over_response_time()
-
+        self.plot_evolution_score_distribution()
+        self.plot_convo_length_vs_evolution_patterns()
+        self.plot_sentiment_journey()
+        self.plot_comparative_analysis()    
+        self.plot_score_drivers()
+        self.plot_extreme_cases()
+        self.plot_different_evo_score_weights()
 
 def main():
-    vis = SentimentVisualizer(sample_size=100000)  # Use None for full dataset
+    vis = SentimentVisualizer(sample_size=10000)  # Use None for full dataset
     vis.load_data_from_mongodb()
     vis.create_all_visualizations()
 
