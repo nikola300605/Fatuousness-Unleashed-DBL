@@ -3,6 +3,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import pandas as pd
 import numpy as np
 import torch
+from bson import ObjectId
+from pymongo_interface import get_documents_batch
 
 
 
@@ -51,20 +53,21 @@ plt.show() """
 # Average response time per airline
 # Trends over time  
 
-tweet1 = "There is, I believe laws on how animals are transported. I am defeated, Your planes are filthy, your staff appears incapable of doing their jobs, and your customer service is non-existent."
-tweet2= "@British_Airways @Juggler90 Looks ok to me!"
-tweet3 = "@British_Airways I’ve just checked in online, it’s a American Airlines flight through BA. I’m travelling with my mum and she’s 80. I’m not sure if she’ll be able to walk the distance to the gate. Can you help us? Thanks."
-result = nlp([tweet1, tweet2, tweet3])
-results = []
-for i in range(len(result)):
-    final = {
-                'predicted_label': result[i][0]['label'],  # Top prediction
-                'scores': {
-                    'negative': round(next(r['score'] for r in result[i] if r['label'] == 'negative'), 2),
-                    'neutral': round(next(r['score'] for r in result[i] if r['label'] == 'neutral'), 2),
-                    'positive': round(next(r['score'] for r in result[i] if r['label'] == 'positive'), 2)
-                }
-            }
-    results.append(final)
+def test_model_without_running(data_csv):
+    df = pd.read_csv(data_csv, names=["conversation_id","tweet_id", "true_tweet_sentiment", "true_evolution_category"])
+    tweet_ids = df['tweet_id'].tolist()
+    conversation_ids = df['conversation_id'].tolist()
 
-print("".join(f"result: {res}\n" for res in results))
+    object_ids = [ObjectId(cid) for cid in conversation_ids]
+    query = {"_id": {"$in": object_ids}}
+    projection = {
+        '_id': True,
+        'conversation_id': True,
+        'thread': True,
+        'computed_metrics.evolution_category': True
+    }
+    cursor = get_documents_batch(query=query, projection = projection, collection='conversations')
+    data= []
+    for batch in cursor:
+        data.extend(batch)
+

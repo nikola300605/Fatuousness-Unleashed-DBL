@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from tqdm import tqdm
 import json
 
 client = MongoClient("mongodb://localhost:27017")
@@ -7,7 +8,8 @@ collection = db["conversations"]
 
 output = []
 
-for convo in collection.find({}):
+# No .count_documents({}) to avoid slowdown
+for convo in tqdm(collection.find({}), desc="Processing conversations"):
     thread = convo.get("thread", [])
     if not thread:
         continue
@@ -21,12 +23,13 @@ for convo in collection.find({}):
         "airline": convo.get("airline", None),
         "first_tweet": first_tweet,
         "full_convo": all_texts,
-        "participants": convo.get("participants",[]),
+        "participants": convo.get("participants", []),
         "length": convo.get("length", len(all_texts)),
-        "start_sent": convo.get("computed_metrics", {}).get("start_sent",None),
-        "end_sent": convo.get("computed_metrics", {}).get("end_sent",None),
-        "delta_sent": convo.get("computed_metrics", {}).get("delta_sent",None)
+        "start_sent": convo.get("computed_metrics", {}).get("start_sent", None),
+        "end_sent": convo.get("computed_metrics", {}).get("end_sent", None),
+        "delta_sent": convo.get("computed_metrics", {}).get("delta_sent", None),
+        "evolution_score": convo.get("computed_metrics", {}).get("evolution_score", None)
     })
 
-with open("conversation_data_cleaned.json","w") as f:
+with open("../conversation_data_cleaned.json", "w") as f:
     json.dump(output, f, indent=2)

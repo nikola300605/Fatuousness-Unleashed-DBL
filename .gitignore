@@ -2,3 +2,8 @@ tweets_json/
 cleaned_tweets_json/
 .env
 plots/
+conversation_data_cleaned.json
+conversation_data_resolved.json
+conversation_data_with_topics.json
+conversation_data_with_topics_zeroshot.json
+conversation_data_hybrid_conservative.json
