@@ -8,6 +8,8 @@ from pymongo_interface import save_conversations_to_mongo
 from datetime import datetime
 import numpy as np
 from bson import ObjectId
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 load_dotenv()
 client = MongoClient(os.getenv("DATABASE_URL"))
@@ -233,6 +235,7 @@ def compute_conversation_score(group: pd.DataFrame):
     
     trend_slope = numerator / denominator if denominator != 0 else 0
     return trend_slope """
+'''
 def compute_delta_score(group: pd.DataFrame):
     user_tweets = group[group['role'] == 'user']
     sorted_group = user_tweets.sort_values(by='tweet_index')
@@ -264,6 +267,36 @@ def compute_delta_score(group: pd.DataFrame):
         'end_sent':   end_sent,
         'delta_sent': round(delta_sent, 2)
     })
+'''
+
+#23:30am fix:
+def compute_delta_score(group: pd.DataFrame):
+    user_tweets = group[group['role'] == 'user']
+    sorted_group = user_tweets.sort_values(by='tweet_index')
+
+    if len(user_tweets) < 2:
+        return pd.Series({
+            'start_sent': None,
+            'end_sent': None,
+            'delta_sent': None
+        })
+
+    start_sent_unweighted = sorted_group.iloc[0]['sentiment_numerical']
+    start_score = sorted_group.iloc[0]['sentiment_score']
+
+    end_sent_unweighted = sorted_group.iloc[-1]['sentiment_numerical']
+    end_score = sorted_group.iloc[-1]['sentiment_score']
+
+    start_sent = start_sent_unweighted * start_score
+    end_sent = end_sent_unweighted * end_score
+    delta_sent = ((end_sent) - (start_sent)) / 2
+
+    return pd.Series({
+        'start_sent': start_sent,
+        'end_sent': end_sent,
+        'delta_sent': round(delta_sent, 2)
+    })
+#end of 23:30am fix
 
 def categorize_behavior(row):
     delta = row['delta_sent']
@@ -323,15 +356,13 @@ if __name__ == "__main__":
     # Load tweet-level data
     df = load_and_prepare_data()
 
+    '''
+    ##
     # Compute conversation-level scores
-    scores_conv_sc = df.groupby('conversation_id', group_keys=False)[df.columns]\
-                   .apply(compute_conversation_score)\
-                   .reset_index()
+    scores_conv_sc = df.groupby('conversation_id').apply(compute_conversation_score).reset_index()
 
-    scores_delta = df.groupby('conversation_id', group_keys=False)[df.columns]\
-                 .apply(compute_delta_score)\
-                 .reset_index()
-    #changed as to not give depriciation warning
+    scores_delta = df.groupby('conversation_id').apply(compute_delta_score).reset_index()
+    #changed as to not give depriciation warning - now reverted that shit again
 
     # Merge convo-level scores into a single conversation-level DataFrame
     df_convo = scores_conv_sc.merge(scores_delta, on='conversation_id')
@@ -342,6 +373,42 @@ if __name__ == "__main__":
     df_convo['evolution_category'] = pd.cut(df_convo['evolution_score'], bins=bins, labels=labels)
 
     df_convo['conversation_trajectory'] = df_convo.apply(categorize_behavior, axis=1)
+
+    ##
+    '''
+    #an 23am fix:
+    scores_conv_sc = df.groupby('conversation_id').apply(compute_conversation_score).reset_index()
+
+    # Ensure delta scores are computed and include conversation_id
+    scores_delta = df.groupby('conversation_id').apply(compute_delta_score).reset_index()
+    # If reset_index() adds 'level_1', drop it
+    if 'level_1' in scores_delta.columns:
+        scores_delta = scores_delta.drop(columns=['level_1'])
+
+    # Debug: print column names to confirm presence
+    print("Columns in scores_delta:", scores_delta.columns.tolist())
+
+    # Merge conversation-level scores
+    df_convo = pd.merge(scores_conv_sc, scores_delta, on='conversation_id', how='inner')
+
+    if 'delta_sent' not in df_convo.columns:
+        raise ValueError("'delta_sent' is still missing after merge. Check compute_delta_score output.")
+
+    # Compute evolution score
+    df_convo['evolution_score'] = round(
+        (df_convo['conversation_score'] * 0.7 + df_convo['delta_sent'].fillna(0) * 0.3), 2)
+
+    # Add evolution category and trajectory
+    bins = [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]
+    labels = ['Very Negative', 'Negative', 'Neutral', 'Positive', 'Very Positive']
+    df_convo['evolution_category'] = pd.cut(df_convo['evolution_score'], bins=bins, labels=labels)
+
+    df_convo['conversation_trajectory'] = df_convo.apply(categorize_behavior, axis=1)
+
+    print("Sample output from compute_delta_score:")
+    print(scores_delta.head())
+    #end of 23am fix
+
 
     # Store conversation-level metrics into MongoDB
     store_results_to_mongodb(df_convo, collection)
