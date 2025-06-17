@@ -1,11 +1,12 @@
 from transformers import pipeline
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import pandas as pd
-import numpy as np
-import torch
 from bson import ObjectId
 from pymongo_interface import get_documents_batch
-
+from processing_data import process_batch
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import evaluate
+import matplotlib.pyplot as plt
 
 
 tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-xlm-roberta-base-sentiment")
@@ -53,21 +54,5 @@ plt.show() """
 # Average response time per airline
 # Trends over time  
 
-def test_model_without_running(data_csv):
-    df = pd.read_csv(data_csv, names=["conversation_id","tweet_id", "true_tweet_sentiment", "true_evolution_category"])
-    tweet_ids = df['tweet_id'].tolist()
-    conversation_ids = df['conversation_id'].tolist()
-
-    object_ids = [ObjectId(cid) for cid in conversation_ids]
-    query = {"_id": {"$in": object_ids}}
-    projection = {
-        '_id': True,
-        'conversation_id': True,
-        'thread': True,
-        'computed_metrics.evolution_category': True
-    }
-    cursor = get_documents_batch(query=query, projection = projection, collection='conversations')
-    data= []
-    for batch in cursor:
-        data.extend(batch)
-
+def test_model_with_running(data_csv):
+    pass

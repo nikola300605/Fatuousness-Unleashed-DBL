@@ -7,7 +7,7 @@ import seaborn as sns
 import numpy as np
 from datetime import datetime
 import warnings
-import itertools
+from scipy.ndimage import gaussian_filter1d
 warnings.filterwarnings('ignore')
 
 class SentimentVisualizer:
@@ -49,6 +49,8 @@ class SentimentVisualizer:
                 "thread.sentiment.score": 1,
                 "computed_metrics": 1,
                 "thread.response_time": 1,
+                "resolved": 1,
+                "topic" : 1
             }}
         ])
 
@@ -60,6 +62,8 @@ class SentimentVisualizer:
             airline = doc.get("airline")
             thread = doc.get("thread", [])
             computed = doc.get("computed_metrics", {})
+            resolved = doc.get("resolved", None)
+            topic = doc.get("topic", None)
 
             if not isinstance(thread, list) or not computed:
                 continue
@@ -74,7 +78,9 @@ class SentimentVisualizer:
                 "evolution_score": computed.get("evolution_score"),
                 "evolution_category": computed.get("evolution_category"),
                 "conversation_trajectory": computed.get("conversation_trajectory"),
-                "total_tweets": len(thread)
+                "total_tweets": len(thread),
+                "resolved": resolved,
+                "topic": topic
             })
 
             for i, tweet in enumerate(thread):
@@ -125,6 +131,8 @@ class SentimentVisualizer:
         fig, ax = plt.subplots(figsize=(10, 6))
         sns.boxplot(data=self.scores_df, x='airline', y='evolution_score', ax=ax, palette=self.custom_colors[:11])
         ax.set_title('Evolution Score Distribution by Airline')
+        ax.set_xlabel("Airline")
+        ax.set_ylabel("Evolution Score")
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
         self.save_plot(fig, "evolution_score_distribution_by_airline")
 
@@ -325,7 +333,7 @@ class SentimentVisualizer:
         fig, ax = plt.subplots(figsize=(10, 7))
         
         # Group by role and sentiment, then create normalized data
-        tab = self.df_merged.groupby(['role', 'sentiment_label']).size().unstack(fill_value=0)
+        tab = self.df_merged[self.df_merged['airline'] == "KLM"].groupby(['role', 'sentiment_label']).size().unstack(fill_value=0)
         
         # Normalize to percentages (0-100)
         tab_normalized = tab.div(tab.sum(axis=1), axis=0) * 100
@@ -351,7 +359,7 @@ class SentimentVisualizer:
         )
         
         # Styling improvements
-        ax.set_title("Sentiment Distribution by Role", 
+        ax.set_title("Sentiment Distribution by Role for KLM", 
                     fontsize=16, fontweight='bold', pad=20)
         ax.set_ylabel("Percentage (%)", fontsize=12, fontweight='bold')
         ax.set_xlabel("Role", fontsize=12, fontweight='bold')
@@ -672,17 +680,19 @@ class SentimentVisualizer:
                             .mean()
                             .reset_index())
         
-
-        # Convert time_period back to datetime if it isn't already
+         # Convert time_period back to datetime if it isn't already
         sentiment_over_time_klm['time_period'] = pd.to_datetime(sentiment_over_time_klm['time_period'])
         sentiment_over_time_others['time_period'] = pd.to_datetime(sentiment_over_time_others['time_period'])
         
         # Sort by date to ensure proper line plotting
         sentiment_over_time_klm = sentiment_over_time_klm.sort_values('time_period')
         sentiment_over_time_others = sentiment_over_time_others.sort_values('time_period')
-        
+
+
+        if aggregation == "day":
+            sentiment_over_time_klm['evolution_score'] = gaussian_filter1d(sentiment_over_time_klm['evolution_score'], sigma=2)
+            sentiment_over_time_others['evolution_score'] = gaussian_filter1d(sentiment_over_time_others['evolution_score'], sigma=2)
     
-            
         # Ensure data is sorted by time
         
         ax.plot(sentiment_over_time_klm['time_period'], sentiment_over_time_klm['evolution_score'], 
@@ -699,10 +709,11 @@ class SentimentVisualizer:
 
         
         # Styling improvements
-        ax.set_title(f"{freq_label} Mean Sentiment Over Time by Airline", 
+        ax.set_title(f"{freq_label} Mean Sentiment (Evolution Score) Over Time by Airline", 
                     fontsize=16, fontweight='bold', pad=20)
         ax.set_ylabel("Mean Sentiment Score", fontsize=12, fontweight='bold')
         ax.set_xlabel("Date", fontsize=12, fontweight='bold')
+        ax.set_ylim(-0.7,0.7)
         
         # Enhanced legend
         legend = ax.legend(
@@ -851,6 +862,8 @@ class SentimentVisualizer:
 
         sns.boxplot(data=df_len, x='length_bin', y='evolution_score', ax=ax[0], palette=self.custom_colors[:5])
         ax[0].set_title("Evolution Score by Conversation Length")
+        ax[0].set_xlabel("Binned conversation length")
+        ax[0].set_ylabel('Evolution score')
         plt.xticks(rotation=45)
         
 
@@ -858,6 +871,9 @@ class SentimentVisualizer:
         len_stats.plot(kind='bar', ax=ax[1], color=self.custom_colors[:5])
         ax[1].set_title("Average Scores by Length")
         ax[1].set_ylim(-0.6,0.6)
+        ax[1].set_xlabel("Binned conversation length")
+        ax[1].set_ylabel("Conversation component values")
+        ax[1].legend(["Conversation Score", "Delta Sentiment", "Evolution Score"])
         plt.xticks(rotation=45)
 
         self.save_plot(fig, "convo_length_vs_evolution_patterns")
@@ -891,15 +907,18 @@ class SentimentVisualizer:
         fig,ax = plt.subplots(figsize=(16, 8))
         success_rate = self.scores_df.groupby('airline')['evolution_score'].apply(lambda x: (x > 0).mean())
         sns.barplot(data=success_rate.reset_index(), x='airline', y='evolution_score', ax=ax, palette=self.custom_colors)
-        ax.set_title("Success Rate by Airline")
+        ax.set_title("Success Rate by Airline (Mean evolution score for cases when it's above 0)")
+        ax.set_ylim(0, 1.0)
         ax.set_xlabel("Airline")
         ax.set_ylabel("Success Rate")
 
         self.save_plot(fig, "comparative_analysis_success_rate")
 
         fig, ax = plt.subplots(figsize=(16, 8))
-        avg_length = self.scores_df.groupby('airline')['total_tweets'].mean()
-        sns.barplot(data=avg_length.reset_index(), x='airline', y='total_tweets', ax=ax, palette=self.custom_colors)
+        avg_length = self.scores_df.groupby('airline')['total_tweets'].mean().reset_index()
+        avg_length = avg_length.sort_values(by='total_tweets')
+        sns.barplot(data=avg_length, x='airline', y='total_tweets', ax=ax, palette=self.custom_colors)
+        ax.set_ylim(0, 4)
         ax.set_title("Average Conversation Length by Airline")
         ax.set_xlabel("Airline")
         ax.set_ylabel("Average Length (Tweets)")
@@ -908,10 +927,11 @@ class SentimentVisualizer:
 
         fig, ax = plt.subplots(figsize=(16, 8))
         components_avg = self.scores_df.groupby('airline')[['conversation_score', 'delta_sent']].mean()
-        components_avg.plot(kind='bar', ax=ax)
+        components_avg.plot(kind='bar', ax=ax, color=self.custom_colors)
         ax.set_title("Average Conversation Components by Airline")
         ax.set_xlabel("Airline")
         ax.legend(['Conversation Score', 'Delta Sentiment'])
+        ax.set_ylim(-0.7, 0.7)
 
         self.save_plot(fig, "comparative_analysis_airlines")
     
@@ -1020,6 +1040,332 @@ class SentimentVisualizer:
             plt.text(0.05, 0.95, f'r = {correlation:.3f}', transform=plt.gca().transAxes)
 
         self.save_plot(fig, "evolution_score_weights_comparison")
+    
+    def plot_resolve_rate_per_trend(self):
+        # Resolve rate per trend
+        fig,ax = plt.subplots(figsize=(12,6))
+
+        by_topic = self.scores_df.groupby(by='topic')['resolved'].mean().reset_index()
+
+        sns.barplot(data=by_topic, x='topic', y='resolved', palette=self.custom_colors)
+        ax.set_title('Resolution rate per topic')
+
+        ax.set_xlabel('Topic')
+        ax.set_ylabel('Resolution Rate')
+        ax.set_ylim(0, 1.0)
+
+        self.save_plot(fig, "resolve_rate_per_trend")
+
+    def plot_average_evo_score_per_topic(self):
+        
+        fig,ax = plt.subplots(figsize=(12,6))
+        by_topic = self.scores_df.groupby('topic')['evolution_score'].mean().reset_index()
+
+        sns.boxplot(data=self.scores_df, x='topic', y='evolution_score', palette=self.custom_colors)
+        ax.set_title('Average evolution score per topic')
+
+        ax.set_xlabel('Topic')
+        ax.set_ylabel('Evolution Score')
+        ax.set_ylim(-1, 1)
+
+        self.save_plot(fig, 'average_evolution_score_per_topic')
+
+    def plot_resolved_per_topic_and_airline(self):
+        fig,ax = plt.subplots(figsize=(12,6), nrows=1, ncols=2)
+
+        counts_klm = self.scores_df[self.scores_df['airline'] == 'KLM'].groupby('topic')['resolved'].mean()
+        counts_others = self.scores_df[self.scores_df['airline'] != 'KLM'].groupby('topic')['resolved'].mean()
+
+        colors = {
+            'booking': '#d32f2f',     # Deep red
+            'customer_service': '#f57c00',          # Orange  
+            'delay': '#1976d2',           # Blue
+            'luggage': '#388e3c',          # Green
+            'other': '#7b1fa2'      # Purple
+        }
+        
+        # Create ordered categories for consistency
+        category_order = ['booking', 'customer_service', 'delay', 'luggage', 'other']
+        
+        # Prepare data in consistent order
+        klm_values = [counts_klm.get(cat, 0) for cat in category_order if counts_klm.get(cat, 0) > 0]
+        klm_labels = [cat for cat in category_order if counts_klm.get(cat, 0) > 0]
+        klm_colors = [colors[cat] for cat in klm_labels]
+        
+        others_values = [counts_others.get(cat, 0) for cat in category_order if counts_others.get(cat, 0) > 0]
+        others_labels = [cat for cat in category_order if counts_others.get(cat, 0) > 0]
+        others_colors = [colors[cat] for cat in others_labels]
+        
+        # KLM pie chart
+        wedges1, texts1, autotexts1 = ax[0].pie(
+            klm_values, 
+            labels=klm_labels, 
+            autopct='%1.1f%%',
+            colors=klm_colors,
+            startangle=90,
+            pctdistance=0.85,
+            wedgeprops=dict(width=0.7, edgecolor='white', linewidth=2),
+            textprops={'fontsize': 12, 'weight': 'bold'}
+        )
+        
+
+        # Others pie chart  
+        wedges2, texts2, autotexts2 = ax[1].pie(
+            others_values,
+            labels=others_labels,
+            autopct='%1.1f%%', 
+            colors=others_colors,
+            startangle=90,
+            pctdistance=0.85,
+            wedgeprops=dict(width=0.7, edgecolor='white', linewidth=2),
+            textprops={'fontsize': 12, 'weight': 'bold'}
+        )
+
+       
+        # Style the percentage text
+        for autotext in autotexts1 + autotexts2:
+            autotext.set_color('white')
+            autotext.set_fontsize(9)
+            autotext.set_weight('bold')
+        
+        # Set titles with better styling
+        ax[0].set_title('KLM Resolution of Topics Distribution', 
+                    fontsize=14, fontweight='bold', pad=20)
+        ax[1].set_title('Other Airlines esolution of Topics Distribution', 
+                    fontsize=14, fontweight='bold', pad=20)
+        
+        # Remove the problematic axhline and main title
+        # The axhline doesn't make sense for pie charts and the main title is redundant
+        
+        # Add a subtle background
+        fig.patch.set_facecolor('#f8f9fa')
+        
+        # Adjust layout for better spacing
+        plt.tight_layout()
+        
+        # Add a legend at the bottom center
+        legend_elements = [plt.Rectangle((0,0),1,1, facecolor=colors[cat], edgecolor='white', linewidth=1) 
+                        for cat in category_order if cat in klm_labels or cat in others_labels]
+        legend_labels = [cat for cat in category_order if cat in klm_labels or cat in others_labels]
+        
+        fig.legend(legend_elements, legend_labels, 
+                loc='lower center', ncol=len(legend_labels), 
+                bbox_to_anchor=(0.5, -0.05),
+                fontsize=11, frameon=False)
+        
+        # Adjust subplot parameters to make room for legend
+        plt.subplots_adjust(bottom=0.15)
+
+        self.save_plot(fig, "resolved_per_topic_and_airline")
+    
+    def plot_resolved_per_topic_and_airline_2(self):
+        fig,ax = plt.subplots(nrows=2, ncols=1, figsize=(12,9), sharex=True)
+        df_modified = self.scores_df.copy()
+        df_modified['airline_group'] = df_modified['airline'].apply(lambda x: 'KLM' if x == 'KLM' else 'Other Airlines')
+
+        resolution_data = df_modified.groupby(['airline_group', 'topic', 'resolved']).size().reset_index(name='count')
+        resolution_data['total'] = resolution_data.groupby(['airline_group', 'topic'])['count'].transform('sum')
+        resolution_data['percentage'] = (resolution_data['count'] / resolution_data['total']) * 100
+
+        resolved_only = resolution_data[resolution_data['resolved'] == True]
+
+        for i,group in enumerate(['KLM', 'Other Airlines']):
+            group_data = resolved_only[resolved_only['airline_group'] == group]
+            sns.barplot(data=group_data, x='topic', y='percentage', ax=ax[i], palette=self.custom_colors)
+            ax[i].set_title(f'{group} - Resolution Rates by Topic', fontsize = 16)
+            ax[i].set_ylabel('Resolution Percentage', fontsize = 12)
+            ax[i].set_ylim(0, 100)
+            ax[i].set_xlabel('Topics', fontsize = 12) if i%2 == 1 else None
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            
+
+        self.save_plot(fig, 'resolved_per_topic_and_airlines_2')
+
+    def plot_response_time_vs_resolution_rate(self):
+        merged = pd.merge(self.df_merged[['conversation_id', 'response_time']], self.scores_df[['conversation_id', 'resolved', 'evolution_score', 'total_tweets', 'topic']],
+                           on='conversation_id', how='inner').dropna(subset=['response_time', 'resolved', 'total_tweets', 'evolution_score', 'topic'])
+
+        topic_stats = merged.groupby('topic').agg({
+        'response_time': 'mean',
+        'resolved': 'mean',
+        'evolution_score': 'mean',
+        'total_tweets': 'mean'
+        }).reset_index()
+
+        fig, ax = plt.subplots(figsize = (12,6))
+
+        scatter = ax.scatter(topic_stats['response_time'], topic_stats['resolved'], 
+                                s=topic_stats['total_tweets']*10, alpha=0.7, c=topic_stats['evolution_score'], 
+                                cmap='RdYlBu', vmin=-0.5, vmax=0.5)
+        ax.set_xlabel('Average Response Time')
+        ax.set_ylabel('Resolution Rate')
+        ax.set_xlim(0, 0.5)
+        ax.set_title('Topic Difficulty Analysis\n(Size=Avg Length, Color=Evolution Score)')
+        plt.colorbar(scatter, ax=ax)
+
+        # Add topic labels
+        for i, topic in enumerate(topic_stats['topic']):
+            ax.annotate(topic, (topic_stats['response_time'].iloc[i], 
+                                    topic_stats['resolved'].iloc[i]), fontsize=8)
+            
+        self.save_plot(fig, "response_time_vs_resolved_rate")
+
+    def plot_average_response_time_per_topic(self):
+        fig,ax = plt.subplots(figsize = (12,6))
+        merged = pd.merge(
+            self.scores_df[['conversation_id', 'topic']],
+            self.df_merged[['conversation_id', 'response_time']],
+            how='inner', on='conversation_id'
+        ).dropna(subset=['topic', 'response_time'])
+
+        #Option 1 - barplots
+        per_topic = merged.groupby('topic')['response_time'].mean().reset_index()    
+        per_topic = per_topic.sort_values(by='response_time')
+        sns.barplot(data=per_topic, x='topic', y='response_time', palette=self.custom_colors, ax=ax)
+        ax.set_title('Average Response Time Per Topic')
+        ax.set_xlabel('Topic')
+        ax.set_ylabel('Average Response Time [minutes]')
+
+        self.save_plot(fig, "average_response_time_per_topic")
+
+    def plot_convo_length_vs_resolution(self):
+        fig, ax = plt.subplots(figsize = (12,6))
+        df = self.scores_df.copy()
+        
+        resolved_lengths = df[df['resolved'] == True].groupby('topic')['total_tweets'].mean()
+        unresolved_lengths = df[df['resolved'] == False].groupby('topic')['total_tweets'].mean()
+        topic_length_comparison = pd.DataFrame({
+            'Resolved': resolved_lengths,
+            'Unresolved': unresolved_lengths
+        }).fillna(0)
+        topic_length_comparison.plot(kind='bar', ax=ax)
+        ax.set_title('Average Conversation Length by Topic and Resolution')
+        ax.set_ylabel('Average Length')
+        ax.tick_params(axis='x', rotation=45)
+
+        self.save_plot(fig, "convo_length_vs_resolution")
+    
+    def plot_response_time_by_day(self):
+        # Extract hour from response times for temporal analysis
+        df = self.df_merged.copy()
+        df['response_day'] = pd.to_datetime(df['created_at']).dt.day_name()
+
+
+        # Create response time heatmap by hour and day
+        response_pivot = df.groupby(['response_day'])['response_time'].mean().reset_index()
+        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+        response_pivot['response_day'] = pd.Categorical(
+            response_pivot['response_day'],
+            categories=day_order,
+            ordered=True
+        )
+        response_pivot = response_pivot.sort_values('response_day')
+
+        fig,ax = plt.subplots(figsize = (16,8))
+        sns.barplot(data=response_pivot, x='response_day', y='response_time', palette=self.custom_colors)
+        ax.set_title('Average Response Time by Day')
+        ax.set_xlabel('Day of Week')
+        ax.set_ylabel('Response Time [minutes]')
+        self.save_plot(fig, "average_response_time_by_day")
+    
+
+    ####################################################################
+    #This is some bulshit completely coocked by Claude, I have no fucking idea what any of this is.
+    def plot_three_way_visualisation(self): #CRAAAZY name btw
+        # 3D analysis of topic, response time, and resolution
+        fig = plt.figure(figsize=(15, 5))
+
+        df = pd.merge(
+            self.scores_df[['conversation_id', 'resolved', 'topic', 'total_tweets', 'evolution_score']],
+            self.df_merged[['conversation_id', 'response_time']],
+            how='inner', on='conversation_id'
+        ).dropna(subset=['resolved', 'topic', 'total_tweets', 'response_time', 'evolution_score'])
+
+        # Bubble chart: topics by response time and resolution rate
+        ax1 = fig.add_subplot(131)
+        topic_bubble = df.groupby('topic').agg({
+            'response_time': 'mean',
+            'resolved': 'mean',
+            'conversation_id': 'count'  # for bubble size
+        }).reset_index()
+
+        scatter = ax1.scatter(topic_bubble['response_time'], topic_bubble['resolved'],
+                            s=topic_bubble.index*5, alpha=0.7)
+        ax1.set_xlabel('Average Response Time')
+        ax1.set_ylabel('Resolution Rate')
+        ax1.set_title('Topic Performance\n(Size = # Conversations)')
+        ax1.set_ylim(0.0, 0.5)
+
+        # Add topic labels
+        for i, topic in enumerate(topic_bubble['topic']):
+            ax1.annotate(topic, (topic_bubble['response_time'].iloc[i], 
+                                topic_bubble['resolved'].iloc[i]), fontsize=8)
+
+        # Response time distribution by topic (violin plot)
+        ax2 = fig.add_subplot(132)
+        topics_for_violin = df['topic'].value_counts().head(6).index  # Top 6 topics
+        df_top_topics = df[df['topic'].isin(topics_for_violin)]
+        sns.violinplot(data=df_top_topics, x='topic', y='response_time', ax=ax2)
+        ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
+        ax2.set_title('Response Time Distribution by Topic')
+        ax2.set_ylim(0, 800)
+
+        # Evolution score by topic and resolution
+        ax3 = fig.add_subplot(133)
+        topic_resolution_evolution = df.groupby(['topic', 'resolved'])['evolution_score'].mean().unstack()
+        topic_resolution_evolution.plot(kind='bar', ax=ax3, color=self.custom_colors)
+        ax3.set_title('Evolution Score by Topic and Resolution')
+        ax3.set_xlabel('Topic')
+        ax3.tick_params(axis='x', rotation=45)
+        ax3.set_ylim(-0.6, 0.6)
+
+        plt.tight_layout()
+
+        self.save_plot(fig, 'three_way_visualisation')
+
+    def plot_response_time_evolution(self):
+        # Sample a few conversations to show response time patterns
+        df = pd.merge(
+            self.scores_df[['conversation_id', 'resolved']],
+            self.df_merged[['conversation_id', 'response_time', 'tweet_index']],
+            on = "conversation_id", how="inner"
+        ).dropna(subset=['resolved', 'response_time', 'tweet_index'])
+        sample_convos = df['conversation_id'].sample(10)
+        
+        fig = plt.figure(figsize=(15, 8))
+        
+        for i, conv_id in enumerate(sample_convos):
+            conv_data = df[df['conversation_id'] == conv_id].sort_values('tweet_index')
+            
+            plt.subplot(2, 5, i+1)
+            response_times = conv_data['response_time'].dropna()
+            plt.plot(range(len(response_times)), response_times, 'o-', alpha=0.7)
+            plt.title(f'Conv {i+1}\nResolved: {conv_data["resolved"].iloc[0]}')
+            plt.xlabel('Tweet Index')
+            plt.ylabel('Response Time')
+        
+        plt.tight_layout()
+        plt.suptitle('Response Time Evolution in Sample Conversations', y=1.02)
+
+        self.save_plot(fig, "response_time_evolution")
+
+    # Response time vs sentiment interaction
+    def plot_response_sentiment_analysis(self):
+        fig = plt.figure(figsize=(12, 8))
+        df = self.df_merged.copy()
+
+        # Response time by sentiment and role
+        sentiment_response = df[df['airline'] == 'KLM'].groupby(['sentiment_label', 'role'])['response_time'].mean().unstack()
+        sentiment_response.plot(kind='bar', ax=plt.gca(), color=self.custom_colors)
+        plt.title('Average Response Time by Sentiment and Role For KLM')
+        plt.xlabel('Sentiment Label')
+        plt.ylabel('Response Time (minutes)')
+        plt.xticks(rotation=0)
+
+        self.save_plot(fig, "response_sentiment_analysis")
+
     def create_all_visualizations(self):
         self.plot_evolution_score_distribution()
         self.plot_evolution_category_distribution()
@@ -1032,10 +1378,11 @@ class SentimentVisualizer:
         #self.plot_start_vs_end_sentiment()
         #self.plot_sentiment_progression_sample()
         self.plot_conversation_count_by_airline()
-        """ self.plot_sentiment_by_airline_and_role() """
         self.plot_trend_distribution()
         self.plot_conversation_length_vs_evolution_score_alternative()
         self.plot_sentiment_over_time_by_airline(aggregation='week')
+        self.plot_sentiment_over_time_by_airline(aggregation='month')
+        self.plot_sentiment_over_time_by_airline(aggregation='day')
         self.plot_delta_sent_against_response_time()
         self.plot_mean_initial_sentiment_over_response_time()
         self.plot_evolution_score_distribution()
@@ -1045,9 +1392,21 @@ class SentimentVisualizer:
         self.plot_score_drivers()
         self.plot_extreme_cases()
         self.plot_different_evo_score_weights()
+        self.plot_resolve_rate_per_trend() 
+        self.plot_average_evo_score_per_topic()
+        self.plot_resolved_per_topic_and_airline()
+        self.plot_resolved_per_topic_and_airline_2()
+        self.plot_response_time_vs_resolution_rate()
+        self.plot_convo_length_vs_resolution()
+        self.plot_average_response_time_per_topic()
+        self.plot_response_time_by_day()
+        self.plot_three_way_visualisation()
+        self.plot_response_sentiment_analysis()
+        self.plot_response_time_evolution()
+
 
 def main():
-    vis = SentimentVisualizer(sample_size=10000)  # Use None for full dataset
+    vis = SentimentVisualizer(sample_size=None)  # Use None for full dataset
     vis.load_data_from_mongodb()
     vis.create_all_visualizations()
 
