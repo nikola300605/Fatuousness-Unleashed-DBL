@@ -10,6 +10,7 @@ import warnings
 from scipy.ndimage import gaussian_filter1d
 warnings.filterwarnings('ignore')
 from scipy import stats
+import time
 
 class SentimentVisualizer:
     custom_colors = ['#1f77b4',  # muted blue
@@ -51,7 +52,8 @@ class SentimentVisualizer:
                 "computed_metrics": 1,
                 "thread.response_time": 1,
                 "resolved": 1,
-                "topic" : 1
+                "topic" : 1,
+                "length": 1
             }}
         ])
 
@@ -65,6 +67,7 @@ class SentimentVisualizer:
             computed = doc.get("computed_metrics", {})
             resolved = doc.get("resolved", None)
             topic = doc.get("topic", None)
+            length = doc.get("length", None)
 
             if not isinstance(thread, list) or not computed:
                 continue
@@ -81,7 +84,8 @@ class SentimentVisualizer:
                 "conversation_trajectory": computed.get("conversation_trajectory"),
                 "total_tweets": len(thread),
                 "resolved": resolved,
-                "topic": topic
+                "topic": topic,
+                "length": length
             })
 
             for i, tweet in enumerate(thread):
@@ -99,7 +103,6 @@ class SentimentVisualizer:
                 response_time = tweet.get("response_time")
                 if label and score is not None and screen_name and airline:
                     role = "support" if screen_name.lower() == airline.lower() else "user"
-                    convo_metrics.append({"role" : role})
                     tweet_rows.append({
                         "conversation_id": convo_id,
                         "airline": airline,
@@ -122,7 +125,7 @@ class SentimentVisualizer:
 
         print(f"Loaded {len(self.scores_df)} conversations and {len(self.df_merged)} tweets")
 
-    def apply_enhanced_styling(ax, title, xlabel, ylabel):
+    def apply_enhanced_styling(self, ax, title, xlabel, ylabel):
         ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
         ax.set_xlabel(xlabel, fontweight='bold')
         ax.set_ylabel(ylabel, fontweight='bold')
@@ -141,7 +144,6 @@ class SentimentVisualizer:
     def plot_evolution_score_distribution(self):
 
         scores = self.scores_df['evolution_score'].tolist()
-        
         if not scores:
             print("No evolution scores found.")
             return
@@ -172,8 +174,7 @@ class SentimentVisualizer:
         ax.axvline(median_score, color=self.custom_colors[2], linestyle=':', linewidth=2.5, 
                 alpha=0.9, label=f'Median: {median_score:.2f}')
         
-        self.apply_enhanced_styling(ax, "Evolution Score Distribution", 
-                            "Evolution Score", "Number of Conversations")
+        self.apply_enhanced_styling(ax, "Evolution Score Distribution", "Evolution Score", "Number of Conversations")
         
         ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, 
                 framealpha=0.9, edgecolor='gray')
@@ -871,18 +872,6 @@ class SentimentVisualizer:
 
 
         self.save_plot(ax.get_figure(), "initial_delta_sent_vs_response_time")
-    
-    def plot_evolution_score_distribution(self):
-        fig,ax = plt.subplots(figsize=(12, 4))
-
-        sns.histplot(data=self.scores_df['evolution_score'], kde=True, bins=30, color=self.custom_colors[0], ax=ax)
-        ax.set_title("Evolution Score Distribution")
-        ax.set_xlabel("Evolution Score")
-        ax.set_ylabel("Frequency")
-        ax.axvline(0, color='red', linestyle='--', label='Neutral Score (0)')
-        ax.legend()
-
-        self.save_plot(fig, "evolution_score_distribution")
             
     def plot_convo_length_vs_evolution_patterns(self):
         fig, ax = plt.subplots(figsize=(14, 8))
@@ -1135,7 +1124,7 @@ class SentimentVisualizer:
     def plot_resolved_per_topic_and_airline(self):
         fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(12, 9), sharex=True)
 
-        self.cores_df['airline_group'] = self.scores_df['airline'].apply(lambda x: 'KLM' if x == 'KLM' else 'Other Airlines')
+        self.scores_df['airline_group'] = self.scores_df['airline'].apply(lambda x: 'KLM' if x == 'KLM' else 'Other Airlines')
 
         grouped = self.scores_df.groupby(['airline_group', 'topic', 'resolved']).size().reset_index(name='count')
         grouped['total'] = grouped.groupby(['airline_group', 'topic'])['count'].transform('sum')
@@ -1454,8 +1443,20 @@ class SentimentVisualizer:
         
         self.apply_enhanced_styling(ax, "KLM: Average Response Time by Sentiment and Role", 'Sentiment', 'Response Time (minutes)')
         self.save_plot(fig, "response_sentiment_analysis")
+    
+    def plot_avg_convo_length_by_airline(self):
+        fig, ax = plt.subplots(figsize=(12, 6))
+        avg_length = self.scores_df.groupby('airline')['length'].mean().reset_index()
+        unique_airlines = avg_length['airline'].nunique()
+        sns.barplot(data=avg_length, x='airline', y='length', hue='airline', palette=self.custom_colors[:unique_airlines], ax=ax, legend=False)
+        self.apply_enhanced_styling(ax, "Average Conversation Length by Airline", "Airline", "Average Length")
+
+        self.save_plot(fig, "average_convo_length_by_airline")
+    
+    
 
     def create_all_visualizations(self):
+        self.plot_label_distribution()
         self.plot_evolution_score_distribution()
         self.plot_evolution_category_distribution()
         self.plot_conversation_trajectory_by_airline()
@@ -1484,7 +1485,6 @@ class SentimentVisualizer:
         self.plot_resolve_rate_per_trend() 
         self.plot_average_evo_score_per_topic()
         self.plot_resolved_per_topic_and_airline()
-        self.plot_resolved_per_topic_and_airline_2()
         self.plot_response_time_vs_resolution_rate()
         self.plot_convo_length_vs_resolution()
         self.plot_average_response_time_per_topic()
@@ -1492,6 +1492,7 @@ class SentimentVisualizer:
         self.plot_three_way_visualisation()
         self.plot_response_sentiment_analysis()
         self.plot_response_time_evolution()
+        self.plot_avg_convo_length_by_airline()
 
 
 def main():
@@ -1500,4 +1501,7 @@ def main():
     vis.create_all_visualizations()
 
 if __name__ == "__main__":
+    start = time.time()
     main()
+    end = time.time()
+    print(f"\nTotal execution time: {(end-start)/60:.2f} minutes")
