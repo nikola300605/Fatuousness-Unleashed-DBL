@@ -43,6 +43,11 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+If you're getting error with pytorch installation, run:
+```bash
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
 ---
 
 ## 3. Environment Configuration
@@ -174,8 +179,8 @@ python extract_first_tweets.py
 # Step 10: Assign conversation topics
 # (Choose one method below)
 python add_topics_labels.py              # Regex-based
-python topic_classification.py           # Zero-shot BART
-python hybrid.py                         # Combined conservative (quite slower)
+python topic_classification.py           # Zero-shot BART (Very slow)
+python hybrid.py                         # Combined conservative (Middle ground, also quite slow)
 
 # Step 11: Mark resolution status of each conversation
 python mark_resolved.py
