@@ -34,15 +34,8 @@ The goal is to assess airline customer support on Twitter by mining user–airli
 ## 2. Setup & Installation
 
 ```bash
-git clone https://github.com/yourusername/airline-support-analysis.git
+git clone https://github.com/nikola300605/Fatuousness-Unleashed-DBL.git
 cd airline-support-analysis
-```
-
-Create a virtual environment (optional but recommended):
-```bash
-python -m venv venv
-source venv/bin/activate        # macOS/Linux
-venv\Scripts\activate         # Windows
 ```
 
 Install dependencies:
@@ -121,6 +114,31 @@ Ensure MongoDB is running locally or update the URL appropriately.
 
 ---
 
+
+### 4.6 Business Case Analysis & Topic Modeling
+
+- `extract_first_tweets.py`: Extracts the first tweet from each conversation and compiles relevant metadata for downstream classification.  
+  **Output:** `conversation_data_cleaned.json`
+
+- `add_topics_labels.py`: Uses keyword-based rules to classify each conversation into topics like `delay`, `luggage`, `booking`, and `customer_service`.  
+  **Input:** `conversation_data_cleaned.json`  
+  **Output:** `conversation_data_with_topics.json`
+
+- `topic_classification.py`: Performs zero-shot topic classification using Facebook's BART model.  
+  **Output:** `conversation_data_with_topics_zeroshot.json`
+
+- `hybrid.py`: Combines regex and zero-shot methods conservatively to improve accuracy.  
+  **Output:** `conversation_data_hybrid_conservative.json`
+
+- `mark_resolved.py`: Flags conversations as resolved or not based on sentiment evolution.  
+  **Input:** `conversation_data_hybrid_conservative.json`  
+  **Output:** `conversation_data_resolved.json`
+
+- `save_to_db.py`: Pushes `topic` and `resolved` flags back into the MongoDB `conversations` collection.
+
+- `hypothesis_testing.py`: Runs chi-square tests to determine if topics significantly affect resolution likelihood.  
+  **Input:** `conversation_data_resolved.json`
+
 ## 5. Execution Workflow
 
 ```bash
@@ -133,18 +151,41 @@ python load_initial_data.py
 # Step 3: Extract conversations and apply sentiment
 python insert_convos.py
 
-# Step 4: Compute sentiment metrics and classifications
+# Step 4: Generate visual analytics on conversations
+python convo_eda.py
+
+# Step 5: Compute sentiment metrics and classifications
 python sentiment_evolution.py
 
-# Step 5: Run monthly showcase demo (optional)
-python demo_monthly_summary.py
-
 # Step 6: Generate visual analytics
-python convo_eda.py
 python sentiment_visualizer.py
 
-# Step 7: Evaluate using labeled ground truth (optional)
+# Step 7: Run monthly showcase demo (optional)
+python demo_monthly_summary.py
+
+# Step 8: Evaluate using labeled ground truth (optional)
 python model_eval.py
+
+# --- Business Case Analysis ---
+
+# Step 9: Extract first tweets from conversations
+python extract_first_tweets.py
+
+# Step 10: Assign conversation topics
+# (Choose one method below)
+python add_topics_labels.py              # Regex-based
+python topic_classification.py           # Zero-shot BART
+python hybrid.py                         # Combined conservative (quite slower)
+
+# Step 11: Mark resolution status of each conversation
+python mark_resolved.py
+
+# Step 12: Save resolved status and topics to MongoDB
+python save_to_db.py
+
+# Step 13: Perform hypothesis testing on resolution likelihood by topic
+python hypothesis_testing.py
+
 ```
 
 ---
