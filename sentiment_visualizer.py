@@ -9,6 +9,7 @@ from datetime import datetime
 import warnings
 from scipy.ndimage import gaussian_filter1d
 warnings.filterwarnings('ignore')
+from scipy import stats
 
 class SentimentVisualizer:
     custom_colors = ['#1f77b4',  # muted blue
@@ -121,6 +122,16 @@ class SentimentVisualizer:
 
         print(f"Loaded {len(self.scores_df)} conversations and {len(self.df_merged)} tweets")
 
+    def apply_enhanced_styling(ax, title, xlabel, ylabel):
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel(xlabel, fontweight='bold')
+        ax.set_ylabel(ylabel, fontweight='bold')
+        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+        ax.set_axisbelow(True)
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.8)
+            spine.set_alpha(0.8)
+
     def save_plot(self, fig, name):
         path = os.path.join(self.save_dir, f"{name}.png")
         fig.savefig(path, dpi=300, bbox_inches='tight')
@@ -128,12 +139,45 @@ class SentimentVisualizer:
         print(f"Saved plot: {path}")
 
     def plot_evolution_score_distribution(self):
+
+        scores = self.scores_df['evolution_score'].tolist()
+        
+        if not scores:
+            print("No evolution scores found.")
+            return
+        
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.boxplot(data=self.scores_df, x='airline', y='evolution_score', ax=ax, palette=self.custom_colors[:11])
-        ax.set_title('Evolution Score Distribution by Airline')
-        ax.set_xlabel("Airline")
-        ax.set_ylabel("Evolution Score")
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+
+        n, bins, patches = ax.hist(scores, bins=30, alpha=0.7, color=self.custom_colors[0], 
+                                edgecolor='white', linewidth=1)
+        
+        for i, patch in enumerate(patches):
+            alpha = 0.4 + 0.6 * (i / len(patches))
+            patch.set_alpha(alpha)
+        
+        density = stats.gaussian_kde(scores)
+        xs = np.linspace(min(scores), max(scores), 200)
+
+        density_values = density(xs)
+        density_scaled = density_values * len(scores) * (bins[1] - bins[0])
+
+        ax.plot(xs, density_scaled, color=self.custom_colors[3], linewidth=3, 
+                alpha=0.8, label='Density Curve')
+        
+        mean_score = sum(scores) / len(scores)
+        median_score = np.median(scores)
+        
+        ax.axvline(mean_score, color=self.custom_colors[1], linestyle='--', linewidth=2.5, 
+                alpha=0.9, label=f'Mean: {mean_score:.2f}')
+        ax.axvline(median_score, color=self.custom_colors[2], linestyle=':', linewidth=2.5, 
+                alpha=0.9, label=f'Median: {median_score:.2f}')
+        
+        self.apply_enhanced_styling(ax, "Evolution Score Distribution", 
+                            "Evolution Score", "Number of Conversations")
+        
+        ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, 
+                framealpha=0.9, edgecolor='gray')
+    
         self.save_plot(fig, "evolution_score_distribution_by_airline")
 
     def plot_evolution_category_distribution(self):
@@ -290,17 +334,7 @@ class SentimentVisualizer:
         )
         legend.get_title().set_fontweight('bold')
         
-        """ # Add percentage labels on bars (only for segments larger than 5%)
-        for container in ax.containers:
-            labels = []
-            for bar in container:
-                height = bar.get_height()
-                if height > 0.05:  # Only show label if segment is > 5%
-                    labels.append(f'{height:.1%}')
-                else:
-                    labels.append('')
-            ax.bar_label(container, labels=labels, label_type='center', 
-                        fontsize=9, fontweight='bold', color='white') """
+
         
         # Add subtle grid
         ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.5)
@@ -851,30 +885,35 @@ class SentimentVisualizer:
         self.save_plot(fig, "evolution_score_distribution")
             
     def plot_convo_length_vs_evolution_patterns(self):
-        fig,ax = plt.subplots(figsize=(16, 8), nrows=1, ncols=2)
-
+        fig, ax = plt.subplots(figsize=(14, 8))
+    
+        # Define bins and labels
         length_bins = [0, 3, 7, 12, 20, float('inf')]
-        labels = ['Very Short (1-3)', 'Short (4-7)', 'Medium (8-12)', 
-                                'Long (12-20)', 'Very Long (20+)']
+        labels = ['Very Short (1-3)', 'Short (4-7)', 'Medium (8-12)', 'Long (13-20)', 'Very Long (20+)']
         
-        df_len = self.scores_df.copy()
-        df_len['length_bin'] = pd.cut(df_len['total_tweets'], bins=length_bins, labels=labels)
+        df = self.scores_df.copy()
+        df['length_bin'] = pd.cut(df['length'], bins=length_bins, labels=labels)
 
-        sns.boxplot(data=df_len, x='length_bin', y='evolution_score', ax=ax[0], palette=self.custom_colors[:5])
-        ax[0].set_title("Evolution Score by Conversation Length")
-        ax[0].set_xlabel("Binned conversation length")
-        ax[0].set_ylabel('Evolution score')
-        plt.xticks(rotation=45)
+        # Boxplot of evolution_score by binned length
+        bin_count = df['length_bin'].nunique()
+        box_plot = sns.boxplot(
+            data=df, 
+            x='length_bin', 
+            y='evolution_score', 
+            palette=self.custom_colors,
+            linewidth=2.5,
+            boxprops=dict(alpha=0.8, linewidth=2),
+            whiskerprops=dict(linewidth=2.5),
+            capprops=dict(linewidth=2.5),
+            medianprops=dict(linewidth=1.5),
+            flierprops=dict(marker='o', markerfacecolor='red', markersize=8, alpha=0.7, markeredgecolor='darkred')
+        )
         
+        ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=10)
+        ax.tick_params(axis='x', rotation=45)
+        self.apply_enhanced_styling(ax=ax, title="Evolution Score by Conversation Length", xlabel="Conversation Length Bin", ylabel="Evolution Score")
 
-        len_stats = df_len.groupby('length_bin')[['conversation_score', 'delta_sent','evolution_score']].mean()
-        len_stats.plot(kind='bar', ax=ax[1], color=self.custom_colors[:5])
-        ax[1].set_title("Average Scores by Length")
-        ax[1].set_ylim(-0.6,0.6)
-        ax[1].set_xlabel("Binned conversation length")
-        ax[1].set_ylabel("Conversation component values")
-        ax[1].legend(["Conversation Score", "Delta Sentiment", "Evolution Score"])
-        plt.xticks(rotation=45)
+        plt.tight_layout()
 
         self.save_plot(fig, "convo_length_vs_evolution_patterns")
 
@@ -1058,129 +1097,108 @@ class SentimentVisualizer:
 
     def plot_average_evo_score_per_topic(self):
         
-        fig,ax = plt.subplots(figsize=(12,6))
-        by_topic = self.scores_df.groupby('topic')['evolution_score'].mean().reset_index()
+        topic_mapping = {
+        'delay': 'Flight Delays',
+        'customer_service': 'Customer Service',
+        'booking': 'Booking & Reservations',
+        'luggage': 'Luggage & Baggage',
+        'other': 'Other Issues',
+    }
 
-        sns.boxplot(data=self.scores_df, x='topic', y='evolution_score', palette=self.custom_colors)
-        ax.set_title('Average evolution score per topic')
+        fig, ax = plt.subplots(figsize=(12, 7))
 
-        ax.set_xlabel('Topic')
-        ax.set_ylabel('Evolution Score')
+        df_plot = self.scores_df.copy()
+        df_plot['topic_display'] = df_plot['topic'].map(topic_mapping).fillna(df_plot['topic'])
+        unique_topics = df_plot['topic_display'].nunique()
+
+        box_plot = sns.boxplot(
+            data=df_plot, 
+            x='topic_display', 
+            y='evolution_score', 
+            ax=ax,
+            palette=self.custom_colors[:unique_topics],
+            linewidth=2,
+            boxprops=dict(alpha=0.8),
+            whiskerprops=dict(linewidth=2),
+            capprops=dict(linewidth=2),
+            medianprops=dict(linewidth=1.5),
+            flierprops=dict(marker='o', markerfacecolor='red', markersize=8, alpha=0.6)
+        )
+
+
+        self.apply_enhanced_styling(ax, 'Average Evolution Score per Topic', 'Topic', 'Evolution Score')
         ax.set_ylim(-1, 1)
-
+        plt.style.use('seaborn-v0_8-whitegrid')
         self.save_plot(fig, 'average_evolution_score_per_topic')
 
-    def plot_resolved_per_topic_and_airline(self):
-        fig,ax = plt.subplots(figsize=(12,6), nrows=1, ncols=2)
-
-        counts_klm = self.scores_df[self.scores_df['airline'] == 'KLM'].groupby('topic')['resolved'].mean()
-        counts_others = self.scores_df[self.scores_df['airline'] != 'KLM'].groupby('topic')['resolved'].mean()
-
-        colors = {
-            'booking': '#d32f2f',     # Deep red
-            'customer_service': '#f57c00',          # Orange  
-            'delay': '#1976d2',           # Blue
-            'luggage': '#388e3c',          # Green
-            'other': '#7b1fa2'      # Purple
-        }
-        
-        # Create ordered categories for consistency
-        category_order = ['booking', 'customer_service', 'delay', 'luggage', 'other']
-        
-        # Prepare data in consistent order
-        klm_values = [counts_klm.get(cat, 0) for cat in category_order if counts_klm.get(cat, 0) > 0]
-        klm_labels = [cat for cat in category_order if counts_klm.get(cat, 0) > 0]
-        klm_colors = [colors[cat] for cat in klm_labels]
-        
-        others_values = [counts_others.get(cat, 0) for cat in category_order if counts_others.get(cat, 0) > 0]
-        others_labels = [cat for cat in category_order if counts_others.get(cat, 0) > 0]
-        others_colors = [colors[cat] for cat in others_labels]
-        
-        # KLM pie chart
-        wedges1, texts1, autotexts1 = ax[0].pie(
-            klm_values, 
-            labels=klm_labels, 
-            autopct='%1.1f%%',
-            colors=klm_colors,
-            startangle=90,
-            pctdistance=0.85,
-            wedgeprops=dict(width=0.7, edgecolor='white', linewidth=2),
-            textprops={'fontsize': 12, 'weight': 'bold'}
-        )
-        
-
-        # Others pie chart  
-        wedges2, texts2, autotexts2 = ax[1].pie(
-            others_values,
-            labels=others_labels,
-            autopct='%1.1f%%', 
-            colors=others_colors,
-            startangle=90,
-            pctdistance=0.85,
-            wedgeprops=dict(width=0.7, edgecolor='white', linewidth=2),
-            textprops={'fontsize': 12, 'weight': 'bold'}
-        )
-
-       
-        # Style the percentage text
-        for autotext in autotexts1 + autotexts2:
-            autotext.set_color('white')
-            autotext.set_fontsize(9)
-            autotext.set_weight('bold')
-        
-        # Set titles with better styling
-        ax[0].set_title('KLM Resolution of Topics Distribution', 
-                    fontsize=14, fontweight='bold', pad=20)
-        ax[1].set_title('Other Airlines esolution of Topics Distribution', 
-                    fontsize=14, fontweight='bold', pad=20)
-        
-        # Remove the problematic axhline and main title
-        # The axhline doesn't make sense for pie charts and the main title is redundant
-        
-        # Add a subtle background
-        fig.patch.set_facecolor('#f8f9fa')
-        
-        # Adjust layout for better spacing
-        plt.tight_layout()
-        
-        # Add a legend at the bottom center
-        legend_elements = [plt.Rectangle((0,0),1,1, facecolor=colors[cat], edgecolor='white', linewidth=1) 
-                        for cat in category_order if cat in klm_labels or cat in others_labels]
-        legend_labels = [cat for cat in category_order if cat in klm_labels or cat in others_labels]
-        
-        fig.legend(legend_elements, legend_labels, 
-                loc='lower center', ncol=len(legend_labels), 
-                bbox_to_anchor=(0.5, -0.05),
-                fontsize=11, frameon=False)
-        
-        # Adjust subplot parameters to make room for legend
-        plt.subplots_adjust(bottom=0.15)
-
-        self.save_plot(fig, "resolved_per_topic_and_airline")
     
-    def plot_resolved_per_topic_and_airline_2(self):
-        fig,ax = plt.subplots(nrows=2, ncols=1, figsize=(12,9), sharex=True)
-        df_modified = self.scores_df.copy()
-        df_modified['airline_group'] = df_modified['airline'].apply(lambda x: 'KLM' if x == 'KLM' else 'Other Airlines')
+    def plot_resolved_per_topic_and_airline(self):
+        fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(12, 9), sharex=True)
 
-        resolution_data = df_modified.groupby(['airline_group', 'topic', 'resolved']).size().reset_index(name='count')
-        resolution_data['total'] = resolution_data.groupby(['airline_group', 'topic'])['count'].transform('sum')
-        resolution_data['percentage'] = (resolution_data['count'] / resolution_data['total']) * 100
+        self.cores_df['airline_group'] = self.scores_df['airline'].apply(lambda x: 'KLM' if x == 'KLM' else 'Other Airlines')
 
-        resolved_only = resolution_data[resolution_data['resolved'] == True]
+        grouped = self.scores_df.groupby(['airline_group', 'topic', 'resolved']).size().reset_index(name='count')
+        grouped['total'] = grouped.groupby(['airline_group', 'topic'])['count'].transform('sum')
+        grouped['percentage'] = (grouped['count'] / grouped['total']) * 100
+        resolved_only = grouped[grouped['resolved'] == True]
 
-        for i,group in enumerate(['KLM', 'Other Airlines']):
-            group_data = resolved_only[resolved_only['airline_group'] == group]
-            sns.barplot(data=group_data, x='topic', y='percentage', ax=ax[i], palette=self.custom_colors)
-            ax[i].set_title(f'{group} - Resolution Rates by Topic', fontsize = 16)
-            ax[i].set_ylabel('Resolution Percentage', fontsize = 12)
+        topic_mapping = {
+            'booking': 'Booking &\nReservations',
+            'customer_service': 'Customer\nService',
+            'delay': 'Flight\nDelays',
+            'luggage': 'Luggage &\nBaggage',
+            'other': 'Other\nIssues'
+        }
+
+        resolved_only['topic_display'] = resolved_only['topic'].map(topic_mapping).fillna(resolved_only['topic'])
+
+
+        for i, group in enumerate(['KLM', 'Other Airlines']):
+            data = resolved_only[resolved_only['airline_group'] == group]
+
+            topic_count = data['topic'].nunique()
+
+            bars = sns.barplot(
+                data=data, 
+                x='topic_display', 
+                y='percentage', 
+                palette=self.custom_colors,
+                ax=ax[i],
+                alpha=0.8,
+                edgecolor='white',
+                linewidth=2
+            )
+            if group == 'KLM':
+                ax[i].set_title('KLM Royal Dutch Airlines - Resolution Rate by Topic', 
+                            fontsize=16, fontweight='bold', pad=15,
+                            bbox=dict(boxstyle="round,pad=0.3", facecolor="#E3F2FD", alpha=0.7))
+            else:
+                ax[i].set_title('Other Airlines - Resolution Rate by Topic', 
+                            fontsize=16, fontweight='bold', pad=15,
+                            bbox=dict(boxstyle="round,pad=0.3", facecolor="#FFF3E0", alpha=0.7))
+            
+            ax[i].set_title(f'{group} - Resolution % by Topic')
+            ax[i].set_ylabel('Resolved %')
             ax[i].set_ylim(0, 100)
-            ax[i].set_xlabel('Topics', fontsize = 12) if i%2 == 1 else None
-            plt.xticks(rotation=45)
-            plt.tight_layout()
+
+            for bar in bars.patches:
+                height = bar.get_height()
+                if height > 0:  # Only add label if there's a bar
+                    ax[i].annotate(f'{height:.1f}%',
+                                xy=(bar.get_x() + bar.get_width() / 2., height),
+                                xytext=(0, 5),  # 5 points vertical offset
+                                textcoords="offset points",
+                                ha='center', va='bottom',
+                                fontsize=11, fontweight='bold',
+                                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8))
+                    
+        ax[0].legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=10)
+        
+        # Set x-axis label only for bottom subplot
+        ax[1].set_xlabel('Topic Category', fontsize=13, fontweight='semibold', labelpad=10)   
             
 
-        self.save_plot(fig, 'resolved_per_topic_and_airlines_2')
+        self.save_plot(fig, 'resolved_per_topic_and_airlines')
 
     def plot_response_time_vs_resolution_rate(self):
         merged = pd.merge(self.df_merged[['conversation_id', 'response_time']], self.scores_df[['conversation_id', 'resolved', 'evolution_score', 'total_tweets', 'topic']],
@@ -1271,6 +1289,43 @@ class SentimentVisualizer:
         self.save_plot(fig, "average_response_time_by_day")
     
 
+    def plot_label_distribution(self):
+        if self.df_merged.empty:
+            print("No tweet data available for sentiment plot.")
+            return
+        
+        # Get sentiment counts and capitalize the labels
+        sentiment_counts = self.df_merged["sentiment_label"].value_counts()
+        
+        # Create a mapping for capitalized labels
+        capitalized_labels = [label.capitalize() for label in sentiment_counts.index]
+
+        plt.style.use('seaborn-v0_8-whitegrid')
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        colors = self.custom_colors[:len(sentiment_counts)]
+        bars = ax.bar(capitalized_labels, sentiment_counts.values,
+                    color=colors, alpha=0.85, 
+                    edgecolor='white', linewidth=2,
+                    width=0.7)
+        
+        for bar, color in zip(bars, colors):
+            
+            bar.set_alpha(0.9)
+            bar.set_edgecolor('white')
+            bar.set_linewidth(2)
+
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + max(sentiment_counts.values) * 0.01,
+                    f'{int(height):,}', ha='center', va='bottom', fontweight='bold', fontsize=10)
+            
+        self.apply_enhanced_styling(ax, "Sentiment Distribution Analysis", 
+                            "Sentiment Category", "Number of Tweets")
+        
+        self.save_plot(fig, "label_distribution")
+        
+
     ####################################################################
     #This is some bulshit completely coocked by Claude, I have no fucking idea what any of this is.
     def plot_three_way_visualisation(self): #CRAAAZY name btw
@@ -1353,17 +1408,51 @@ class SentimentVisualizer:
 
     # Response time vs sentiment interaction
     def plot_response_sentiment_analysis(self):
-        fig = plt.figure(figsize=(12, 8))
-        df = self.df_merged.copy()
+        fig, ax = plt.subplots(figsize=(14, 9))
+        df = self.df_merged[self.df_merged['airline'] == 'KLM']
 
-        # Response time by sentiment and role
-        sentiment_response = df[df['airline'] == 'KLM'].groupby(['sentiment_label', 'role'])['response_time'].mean().unstack()
-        sentiment_response.plot(kind='bar', ax=plt.gca(), color=self.custom_colors)
-        plt.title('Average Response Time by Sentiment and Role For KLM')
-        plt.xlabel('Sentiment Label')
-        plt.ylabel('Response Time (minutes)')
-        plt.xticks(rotation=0)
+        grp = df.groupby(['sentiment_label', 'role'])['response_time'].mean().unstack()
 
+        bar_width = 0.35
+        x_pos = np.arange(len(grp.index))
+        roles = grp.columns.tolist()
+
+        for i, role in enumerate(roles):
+            values = grp[role].values
+            bars = ax.bar(x_pos + i * bar_width, values, 
+                        width=bar_width, 
+                        label=role.capitalize(),
+                        color=self.custom_colors[i],
+                        alpha=0.85,
+                        edgecolor='white',
+                        linewidth=1.5)
+            
+            # Add value labels on top of bars
+            for bar in bars:
+                height = bar.get_height()
+                if not np.isnan(height):
+                    ax.text(bar.get_x() + bar.get_width()/2., height + max(grp.max()) * 0.02,
+                        f'{height:.0f}',
+                        ha='center', va='bottom', 
+                        fontweight='bold', fontsize=11,
+                        color='#2C3E50')
+
+        ax.set_xticks(x_pos + bar_width / 2)
+        ax.set_xticklabels([label.capitalize() for label in grp.index], 
+                        rotation=0, fontsize=12)
+
+        legend = ax.legend(title='Role', 
+                        frameon=True, 
+                        fancybox=True, 
+                        shadow=True,
+                        title_fontsize=12,
+                        fontsize=11,
+                        loc='upper right')
+        legend.get_frame().set_facecolor('#FFFFFF')
+        legend.get_frame().set_alpha(0.9)
+
+        
+        self.apply_enhanced_styling(ax, "KLM: Average Response Time by Sentiment and Role", 'Sentiment', 'Response Time (minutes)')
         self.save_plot(fig, "response_sentiment_analysis")
 
     def create_all_visualizations(self):

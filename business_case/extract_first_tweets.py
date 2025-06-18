@@ -7,9 +7,9 @@ db = client["twitter_db"]
 collection = db["conversations"]
 
 output = []
-
+query = { "topic": { "$exists": False } }
 # No .count_documents({}) to avoid slowdown
-for convo in tqdm(collection.find({}), desc="Processing conversations"):
+for convo in tqdm(collection.find(query), desc="Processing conversations"):
     thread = convo.get("thread", [])
     if not thread:
         continue
@@ -31,5 +31,7 @@ for convo in tqdm(collection.find({}), desc="Processing conversations"):
         "evolution_score": convo.get("computed_metrics", {}).get("evolution_score", None)
     })
 
-with open("../conversation_data_cleaned.json", "w") as f:
+with open("conversation_data_cleaned.json", "w") as f:
     json.dump(output, f, indent=2)
+
+print(len(output))

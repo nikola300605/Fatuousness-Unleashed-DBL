@@ -144,11 +144,28 @@ def plot_sentiment_distribution(df):
     if df.empty:
         print("No tweet data available for sentiment plot.")
         return
+    
+    # Get sentiment counts and capitalize the labels
     sentiment_counts = df["sentiment.label"].value_counts()
-    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Create a mapping for capitalized labels
+    capitalized_labels = [label.capitalize() for label in sentiment_counts.index]
+
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
     colors = custom_colors[:len(sentiment_counts)]
-    bars = ax.bar(sentiment_counts.index, sentiment_counts.values, 
-                  color=colors, alpha=0.8, edgecolor='white', linewidth=1.5)
+    bars = ax.bar(capitalized_labels, sentiment_counts.values,
+                  color=colors, alpha=0.85, 
+                  edgecolor='white', linewidth=2,
+                  width=0.7)
+    
+    for bar, color in zip(bars, colors):
+        
+        bar.set_alpha(0.9)
+        bar.set_edgecolor('white')
+        bar.set_linewidth(2)
+
     for bar in bars:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height + max(sentiment_counts.values) * 0.01,
@@ -157,18 +174,18 @@ def plot_sentiment_distribution(df):
                           "Sentiment Category", "Number of Tweets")
     file_path = os.path.join(PLOT_DIR, "sentiment_distribution.png")
     save_plot_with_enhancements(file_path)
-    plt.show()
+    
 
 
 
-def plot_conversation_score(convos):
+def plot_evolution_score(convos):
     scores = []
     for conv in convos:
-        score = conv.get("computed_metrics", {}).get("conversation_score")
+        score = conv.get("computed_metrics", {}).get("evolution_score")
         if isinstance(score, (int, float)):
             scores.append(score)
     if not scores:
-        print("No conversation scores found.")
+        print("No evolution scores found.")
         return
     fig, ax = plt.subplots(figsize=(10, 6))
     n, bins, patches = ax.hist(scores, bins=30, alpha=0.7, color=custom_colors[0], 
@@ -188,22 +205,48 @@ def plot_conversation_score(convos):
                alpha=0.9, label=f'Mean: {mean_score:.2f}')
     ax.axvline(median_score, color=custom_colors[2], linestyle=':', linewidth=2.5, 
                alpha=0.9, label=f'Median: {median_score:.2f}')
-    apply_enhanced_styling(ax, "Conversation Score Distribution", 
-                          "Conversation Score", "Number of Conversations")
+    apply_enhanced_styling(ax, "Evolution Score Distribution", 
+                          "Evolution Score", "Number of Conversations")
     ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, 
               framealpha=0.9, edgecolor='gray')
-    file_path = os.path.join(PLOT_DIR, "conversation_score_distribution.png")
+    file_path = os.path.join(PLOT_DIR, "evolution_score_distribution.png")
     save_plot_with_enhancements(file_path)
-    plt.show()
 
 def plot_average_evo_score_per_topic(scores_df):
-    fig, ax = plt.subplots(figsize=(12, 6))
-    unique_topics = scores_df['topic'].nunique()
-    sns.boxplot(data=scores_df, x='topic', y='evolution_score', hue='topic', palette=custom_colors[:unique_topics], legend=False)
+    topic_mapping = {
+        'delay': 'Flight Delays',
+        'customer_service': 'Customer Service',
+        'booking': 'Booking & Reservations',
+        'luggage': 'Luggage & Baggage',
+        'other': 'Other Issues',
+    }
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    df_plot = scores_df.copy()
+    df_plot['topic_display'] = df_plot['topic'].map(topic_mapping).fillna(df_plot['topic'])
+    unique_topics = df_plot['topic_display'].nunique()
+
+    box_plot = sns.boxplot(
+        data=df_plot, 
+        x='topic_display', 
+        y='evolution_score', 
+        ax=ax,
+        palette=custom_colors[:unique_topics],
+        linewidth=2,
+        boxprops=dict(alpha=0.8),
+        whiskerprops=dict(linewidth=2),
+        capprops=dict(linewidth=2),
+        medianprops=dict(linewidth=1.5),
+        flierprops=dict(marker='o', markerfacecolor='red', markersize=8, alpha=0.6)
+    )
+
+
     apply_enhanced_styling(ax, 'Average Evolution Score per Topic', 'Topic', 'Evolution Score')
     ax.set_ylim(-1, 1)
+    plt.style.use('seaborn-v0_8-whitegrid')
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'average_evolution_score_per_topic.png'))
-    plt.show()
+
 
 def plot_average_response_time_per_topic(scores_df, df_merged):
     merged = pd.merge(scores_df[['conversation_id', 'topic']],
@@ -215,16 +258,8 @@ def plot_average_response_time_per_topic(scores_df, df_merged):
     sns.barplot(data=per_topic, x='topic', y='response_time', hue='topic', palette=custom_colors[:unique_topics], ax=ax, legend=False)
     apply_enhanced_styling(ax, 'Average Response Time Per Topic', 'Topic', 'Avg Response Time [min]')
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'average_response_time_per_topic.png'))
-    plt.show()
 
-def plot_evolution_score_distribution_kde(scores_df):
-    fig, ax = plt.subplots(figsize=(12, 4))
-    sns.histplot(data=scores_df['evolution_score'], kde=True, bins=30, color=custom_colors[0], ax=ax)
-    ax.axvline(0, color='red', linestyle='--', label='Neutral Score (0)')
-    apply_enhanced_styling(ax, 'Evolution Score Distribution', 'Evolution Score', 'Frequency')
-    ax.legend()
-    save_plot_with_enhancements(os.path.join(PLOT_DIR, 'evolution_score_distribution_kde.png'))
-    plt.show()
+
 
 def plot_convo_length_clipped(scores_df):
     fig, ax = plt.subplots(figsize=(8, 4))
@@ -232,7 +267,7 @@ def plot_convo_length_clipped(scores_df):
     sns.histplot(clipped_lengths, bins=10, kde=False, color=custom_colors[0], ax=ax)
     apply_enhanced_styling(ax, "Conversation Length Distribution (Clipped at 10)", "Number of Tweets", "Frequency")
     save_plot_with_enhancements(os.path.join(PLOT_DIR, "convo_length_clipped_distribution.png"))
-    plt.show()
+
 
 def plot_sentiment_journey(scores_df):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -251,7 +286,7 @@ def plot_sentiment_journey(scores_df):
     ax.text(-0.5, -0.5, 'Negative→Negative\n(Persisted)', ha='center', va='center',
             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.5))
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'sentiment_journey.png'))
-    plt.show()
+
 
 
 def plot_convo_count_by_airline(scores_df):
@@ -270,7 +305,7 @@ def plot_convo_count_by_airline(scores_df):
     ax.set_axisbelow(True)
     ax.set_ylim(0, max(airline_counts.values) * 1.1)
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'convo_count_by_airline.png'))
-    plt.show()
+
 
 # === Remaining Plot Functions ===
 def plot_evolution_category_distribution(scores_df):
@@ -293,47 +328,142 @@ def plot_evolution_category_distribution(scores_df):
                     pctdistance=0.85, wedgeprops=dict(width=0.7, edgecolor='white'))
         ax[idx].set_title(f"{group} Evolution Category")
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'evolution_category_distribution.png'))
-    plt.show()
+
 
 def plot_conversation_trajectory_by_airline(scores_df):
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(12, 6))
     tab = pd.crosstab(scores_df['airline'], scores_df['conversation_trajectory'], normalize='index')
     tab = tab[['Worsening', 'Stable', 'Improving']].fillna(0)
-    tab.plot(kind='bar', stacked=True, ax=ax, color=["#7B162A", "#9C9463B6", "#095C2D"], edgecolor='white')
+    tab.plot(kind='bar', stacked=True, ax=ax, color=["#7B162A", "#9C9463B6", "#095C2D"], edgecolor='white', linewidth=1.5, alpha=0.85)
     apply_enhanced_styling(ax, "Conversation Trajectory by Airline", "Airline", "Proportion")
     ax.set_ylim(0, 1.0)
-    ax.legend(title='Trajectory')
+    ax.legend(title='Trajectory', 
+            bbox_to_anchor=(1.05, 1), 
+            loc='upper left',
+            frameon=True,
+            fancybox=True,
+            shadow=True,
+            fontsize=11,
+            title_fontsize=12)
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'conversation_trajectory_by_airline.png'))
-    plt.show()
+
 
 def plot_resolved_per_topic_and_airline(scores_df):
     fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(12, 9), sharex=True)
+
     scores_df['airline_group'] = scores_df['airline'].apply(lambda x: 'KLM' if x == 'KLM' else 'Other Airlines')
+
     grouped = scores_df.groupby(['airline_group', 'topic', 'resolved']).size().reset_index(name='count')
     grouped['total'] = grouped.groupby(['airline_group', 'topic'])['count'].transform('sum')
     grouped['percentage'] = (grouped['count'] / grouped['total']) * 100
     resolved_only = grouped[grouped['resolved'] == True]
+
+    topic_mapping = {
+        'booking': 'Booking &\nReservations',
+        'customer_service': 'Customer\nService',
+        'delay': 'Flight\nDelays',
+        'luggage': 'Luggage &\nBaggage',
+        'other': 'Other\nIssues'
+    }
+
+    resolved_only['topic_display'] = resolved_only['topic'].map(topic_mapping).fillna(resolved_only['topic'])
+
+
     for i, group in enumerate(['KLM', 'Other Airlines']):
         data = resolved_only[resolved_only['airline_group'] == group]
+
         topic_count = data['topic'].nunique()
-        sns.barplot(data=data, x='topic', y='percentage', hue='topic', palette=custom_colors[:topic_count], ax=ax[i], legend=False)
+
+        bars = sns.barplot(
+            data=data, 
+            x='topic_display', 
+            y='percentage', 
+            palette=custom_colors,
+            ax=ax[i],
+            alpha=0.8,
+            edgecolor='white',
+            linewidth=2
+        )
+        if group == 'KLM':
+            ax[i].set_title('KLM Royal Dutch Airlines - Resolution Rate by Topic', 
+                           fontsize=16, fontweight='bold', pad=15,
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor="#E3F2FD", alpha=0.7))
+        else:
+            ax[i].set_title('Other Airlines - Resolution Rate by Topic', 
+                           fontsize=16, fontweight='bold', pad=15,
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor="#FFF3E0", alpha=0.7))
+        
         ax[i].set_title(f'{group} - Resolution % by Topic')
         ax[i].set_ylabel('Resolved %')
         ax[i].set_ylim(0, 100)
+
+        for bar in bars.patches:
+            height = bar.get_height()
+            if height > 0:  # Only add label if there's a bar
+                ax[i].annotate(f'{height:.1f}%',
+                              xy=(bar.get_x() + bar.get_width() / 2., height),
+                              xytext=(0, 5),  # 5 points vertical offset
+                              textcoords="offset points",
+                              ha='center', va='bottom',
+                              fontsize=11, fontweight='bold',
+                              bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8))
+                
+    ax[0].legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=10)
+    
+    # Set x-axis label only for bottom subplot
+    ax[1].set_xlabel('Topic Category', fontsize=13, fontweight='semibold', labelpad=10)            
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'resolved_per_topic_and_airline.png'))
-    plt.show()
+
 
 def plot_response_sentiment_analysis(df_merged):
-    fig = plt.figure(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(14, 9))
     df = df_merged[df_merged['airline'] == 'KLM']
+
     grp = df.groupby(['sentiment_label', 'role'])['response_time'].mean().unstack()
-    grp.plot(kind='bar', ax=plt.gca(), color=custom_colors)
-    plt.title('KLM: Avg Response Time by Sentiment and Role')
-    plt.xlabel('Sentiment')
-    plt.ylabel('Response Time (minutes)')
-    plt.xticks(rotation=0)
+
+    bar_width = 0.35
+    x_pos = np.arange(len(grp.index))
+    roles = grp.columns.tolist()
+
+    for i, role in enumerate(roles):
+        values = grp[role].values
+        bars = ax.bar(x_pos + i * bar_width, values, 
+                     width=bar_width, 
+                     label=role.capitalize(),
+                     color=custom_colors[i],
+                     alpha=0.85,
+                     edgecolor='white',
+                     linewidth=1.5)
+        
+        # Add value labels on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            if not np.isnan(height):
+                ax.text(bar.get_x() + bar.get_width()/2., height + max(grp.max()) * 0.02,
+                       f'{height:.0f}',
+                       ha='center', va='bottom', 
+                       fontweight='bold', fontsize=11,
+                       color='#2C3E50')
+
+    ax.set_xticks(x_pos + bar_width / 2)
+    ax.set_xticklabels([label.capitalize() for label in grp.index], 
+                       rotation=0, fontsize=12)
+
+    legend = ax.legend(title='Role', 
+                      frameon=True, 
+                      fancybox=True, 
+                      shadow=True,
+                      title_fontsize=12,
+                      fontsize=11,
+                      loc='upper right')
+    legend.get_frame().set_facecolor('#FFFFFF')
+    legend.get_frame().set_alpha(0.9)
+
+    
+    apply_enhanced_styling(ax, "KLM: Average Response Time by Sentiment and Role", 'Sentiment', 'Response Time (minutes)')
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'response_sentiment_analysis.png'))
-    plt.show()
+
+
 
 def plot_extreme_cases(scores_df):
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -344,28 +474,101 @@ def plot_extreme_cases(scores_df):
     ax.set_ylabel('Delta Sentiment')
     ax.set_title('Component Relationship (Size = Conv Length)')
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'extreme_cases.png'))
-    plt.show()
+
 
 def plot_sentiment_over_time_by_airline(scores_df, df_merged):
     fig, ax = plt.subplots(figsize=(14, 8))
 
-    merged = pd.merge(scores_df[['conversation_id', 'airline', 'evolution_score']],
-                      df_merged[['conversation_id', 'created_at']], on='conversation_id', how="inner").dropna(subset=["airline", "evolution_score", "created_at"])
+    merged = pd.merge(scores_df[['conversation_id', 'evolution_score']],
+                      df_merged[['conversation_id', 'airline','created_at']], on='conversation_id', how="inner").dropna(subset=["airline", "evolution_score", "created_at"])
     
-    merged['created_at'] = pd.to_datetime(merged['created_at'], format='%a, %d %b %Y %H:%M:%S %z', errors='coerce')
+    print(f"Total merged data: {len(merged)}")
+    print(f"Date range: {merged['created_at'].min()} to {merged['created_at'].max()}")
+    print(merged[merged['airline'] == 'KLM'])
+        
+    merged['created_at'] = pd.to_datetime(merged['created_at'])
 
     merged['week'] = merged['created_at'].dt.to_period('W-MON').dt.start_time
 
-    klm = merged[merged['airline'] == 'KLM'].groupby('week')['evolution_score'].mean()
-    others = merged[merged['airline'] != 'KLM'].groupby('week')['evolution_score'].mean()
+    merged_klm = merged[merged['airline'] == 'KLM']
+    merged_others = merged[merged['airline'] != 'KLM']
+    print(f"KLM data: {merged_klm}")
+    print(f"Other airlines data: {len(merged_others)}")
+
+    # Group by time period and airline, calculate mean sentiment
+    sentiment_over_time_klm = (merged_klm
+                        .groupby(['week'])['evolution_score']
+                        .mean()
+                        .reset_index())
     
-    ax.plot(klm.index, klm.values, label='KLM', marker='o', linewidth=2.5, color=custom_colors[0])
-    ax.plot(others.index, others.values, label='Others', marker='o', linewidth=2.5, color=custom_colors[1])
-    apply_enhanced_styling(ax, "Weekly Avg Sentiment by Airline", "Week", "Mean Evolution Score")
+    sentiment_over_time_others = (merged_others
+                        .groupby(['week'])['evolution_score']
+                        .mean()
+                        .reset_index())
+    
+        # Convert time_period back to datetime if it isn't already
+    sentiment_over_time_klm['week'] = pd.to_datetime(sentiment_over_time_klm['week'])
+    sentiment_over_time_others['week'] = pd.to_datetime(sentiment_over_time_others['week'])
+    
+    # Sort by date to ensure proper line plotting
+    sentiment_over_time_klm = sentiment_over_time_klm.sort_values('week')
+    sentiment_over_time_others = sentiment_over_time_others.sort_values('week')
+
+    print(f"KLM weekly data points: {len(sentiment_over_time_klm)}")
+    print(f"Other airlines weekly data points: {len(sentiment_over_time_others)}")
+    print("KLM weekly data:")
+    print(sentiment_over_time_klm)
+    print("Others weekly data:")
+    print(sentiment_over_time_others)
+    
+    ax.plot(sentiment_over_time_klm['week'], sentiment_over_time_klm['evolution_score'], 
+                marker='o', linewidth=2.5, markersize=5,
+                label='KLM', 
+                color=custom_colors[0],
+                alpha=0.8)
+        
+    ax.plot(sentiment_over_time_others['week'], sentiment_over_time_others['evolution_score'], 
+            marker='o', linewidth=2.5, markersize=5,
+            label='Other Airlines', 
+            color=custom_colors[1],
+            alpha=0.8)
+
+    
+    # Styling improvements
+    ax.set_title(f"Weekly Mean Sentiment (Evolution Score) Over Time by Airline", 
+                fontsize=16, fontweight='bold', pad=20)
+    ax.set_ylabel("Mean Sentiment Score", fontsize=12, fontweight='bold')
+    ax.set_xlabel("Date", fontsize=12, fontweight='bold')
+    ax.set_ylim(-0.7,0.7)
+    
+    # Enhanced legend
+    legend = ax.legend(
+        bbox_to_anchor=(1.02, 1), 
+        loc='upper left',
+        frameon=True,
+        fancybox=True,
+        shadow=True,
+        fontsize=10
+    )
+    legend.get_title().set_fontweight('bold')
+    
+    # Grid and styling
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_axisbelow(True)
+    
+    # Clean up spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.tick_params(axis='x', rotation=45)
+    # Show fewer ticks for daily data to avoid crowding
+    ax.locator_params(axis='x', nbins=10)
+
     ax.axhline(0, color='gray', linestyle='--')
     ax.legend()
+    apply_enhanced_styling(ax, "Weekly Avg Sentiment by Airline", "Week", "Mean Evolution Score")
+
+    
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'sentiment_over_time_weekly_by_airline.png'))
-    plt.show()
 
 def plot_success_rate_by_airline(scores_df):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -375,7 +578,6 @@ def plot_success_rate_by_airline(scores_df):
     apply_enhanced_styling(ax, "Success Rate by Airline", "Airline", "Proportion of Positive Evolution")
     ax.set_ylim(0, 1.0)
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'success_rate_by_airline.png'))
-    plt.show()
 
 def plot_avg_convo_length_by_airline(scores_df):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -384,21 +586,11 @@ def plot_avg_convo_length_by_airline(scores_df):
     sns.barplot(data=avg_length, x='airline', y='length', hue='airline', palette=custom_colors[:unique_airlines], ax=ax, legend=False)
     apply_enhanced_styling(ax, "Average Conversation Length by Airline", "Airline", "Average Length")
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'avg_convo_length_by_airline.png'))
-    plt.show()
 
-def plot_avg_convo_components_by_airline(scores_df):
-    fig, ax = plt.subplots(figsize=(12, 6))
-    component_means = scores_df.groupby('airline')[['conversation_score', 'delta_sent']].mean().reset_index()
-    component_means_melted = pd.melt(component_means, id_vars='airline', var_name='Metric', value_name='Value')
-    sns.barplot(data=component_means_melted, x='airline', y='Value', hue='Metric', ax=ax, palette=custom_colors[:2])
-    apply_enhanced_styling(ax, "Average Conversation Components by Airline", "Airline", "Average Value")
-    ax.axhline(0, color='gray', linestyle='--')
-    ax.legend()
-    save_plot_with_enhancements(os.path.join(PLOT_DIR, 'avg_convo_components_by_airline.png'))
-    plt.show()
+
 
 def plot_convo_length_vs_evo_patterns(scores_df):
-    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(16, 6))
+    fig, ax = plt.subplots(figsize=(14, 8))
     
     # Define bins and labels
     length_bins = [0, 3, 7, 12, 20, float('inf')]
@@ -409,24 +601,25 @@ def plot_convo_length_vs_evo_patterns(scores_df):
 
     # Boxplot of evolution_score by binned length
     bin_count = df['length_bin'].nunique()
-    sns.boxplot(data=df, x='length_bin', y='evolution_score', hue='length_bin', palette=custom_colors[:bin_count], ax=ax[0], legend=False)
-    ax[0].set_title("Evolution Score by Conversation Length")
-    ax[0].set_xlabel("Conversation Length Bin")
-    ax[0].set_ylabel("Evolution Score")
-    ax[0].tick_params(axis='x', rotation=45)
-    plt.show()
-    # Average scores by bin
-    grouped = df.groupby('length_bin', observed=True)[['conversation_score', 'delta_sent', 'evolution_score']].mean().reset_index()
-    grouped.set_index('length_bin')[['conversation_score', 'delta_sent', 'evolution_score']].plot(kind='bar', ax=ax[1], color=custom_colors[:3])
-    ax[1].set_title("Average Component Scores by Length Bin")
-    ax[1].set_xlabel("Conversation Length Bin")
-    ax[1].set_ylabel("Average Score")
-    ax[1].tick_params(axis='x', rotation=45)
-    ax[1].axhline(0, color='gray', linestyle='--')
+    box_plot = sns.boxplot(
+        data=df, 
+        x='length_bin', 
+        y='evolution_score', 
+        palette=custom_colors,
+        linewidth=2.5,
+        boxprops=dict(alpha=0.8, linewidth=2),
+        whiskerprops=dict(linewidth=2.5),
+        capprops=dict(linewidth=2.5),
+        medianprops=dict(linewidth=1.5),
+        flierprops=dict(marker='o', markerfacecolor='red', markersize=8, alpha=0.7, markeredgecolor='darkred')
+    )
+    
+    ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=10)
+    ax.tick_params(axis='x', rotation=45)
+    apply_enhanced_styling(ax=ax, title="Evolution Score by Conversation Length", xlabel="Conversation Length Bin", ylabel="Evolution Score")
 
     plt.tight_layout()
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'convo_length_vs_evo_patterns.png'))
-    plt.show()
 
 
 
@@ -438,6 +631,7 @@ def main():
     if not validate_month_input(month):
         print("Invalid format. Please enter in YYYY-MM format.")
         return
+    
     conversations = load_conversations_for_month(month)
     if not conversations:
         print("No conversations found for that month.")
@@ -449,15 +643,13 @@ def main():
     print(f" - Tweets with sentiment: {len(tweets_df)}")
 
     plot_sentiment_distribution(tweets_df)
-    plot_conversation_score(conversations)
+    plot_evolution_score(conversations)
     plot_average_evo_score_per_topic(scores_df)
     plot_average_response_time_per_topic(scores_df, df_merged)
-    plot_evolution_score_distribution_kde(scores_df)
     plot_convo_length_clipped(scores_df)
     plot_sentiment_journey(scores_df)
     plot_success_rate_by_airline(scores_df)
     plot_avg_convo_length_by_airline(scores_df)
-    plot_avg_convo_components_by_airline(scores_df)
     plot_convo_count_by_airline(scores_df)
     plot_convo_length_vs_evo_patterns(scores_df)
     plot_evolution_category_distribution(scores_df)

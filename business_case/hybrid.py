@@ -52,7 +52,7 @@ regex_topics = {
 print("Loading zero-shot classification model...")
 try:
     classifier = pipeline("zero-shot-classification", 
-                         model="facebook/bart-large-mnli",
+                         model="joeddav/xlm-roberta-large-xnli",
                          device=0 if torch.cuda.is_available() else -1)
     print("✓ Zero-shot model loaded successfully")
 except Exception as e:
