@@ -3,50 +3,49 @@
 
 ---
 
-This project evaluates the quality of airline customer support, specifically focusing on KLM, by analyzing Twitter conversations. It uses data mining, natural language processing, and sentiment modeling to assess user satisfaction, support efficiency, and conversation outcomes.
+This project evaluates the quality of airline customer support by analyzing Twitter conversations, with a primary focus on KLM and comparisons to other airlines. It uses data mining, natural language processing, and sentiment modeling to assess user satisfaction, support efficiency, and conversation outcomes.
 
 ---
 
-## 📑 Table of Contents
+## 📂 Table of Contents
 
-1. [Project Overview](#project-overview)  
-2. [Setup & Installation](#setup--installation)  
-3. [Environment Configuration](#environment-configuration)
-4. [File Descriptions](#file-descriptions)  
+1. [Project Overview](#1-project-overview)  
+2. [Setup & Installation](#2-setup--installation)  
+3. [Environment Configuration](#3-environment-configuration)  
+4. [File Descriptions](#4-file-descriptions)  
    - [Data Cleaning & Loading](#41-data-cleaning--loading)  
    - [Conversation Mining & Sentiment Analysis](#42-conversation-mining--sentiment-analysis)  
    - [Metric Computation](#43-metric-computation)  
    - [Data Exploration & Visualization](#44-data-exploration--visualization)  
-   - [Statistical Evaluation](#45-statistical-evaluation)  
-5. [Execution Workflow](#execution-workflow)  
-6. [Output Structure](#output-structure)  
-7. [Methodology Summary](#methodology-summary)  
-8. [Notes](#notes)
+   - [Evaluation & Demonstration](#45-evaluation--demonstration)  
+5. [Execution Workflow](#5-execution-workflow)  
+6. [Output Structure](#6-output-structure)  
+7. [Methodology Summary](#7-methodology-summary)  
+8. [Notes](#8-notes)
 
 ---
 
 ## 1. Project Overview
 
-The goal is to assess airline customer support—especially KLM—by mining Twitter threads and analyzing sentiment shifts within them. The system constructs conversation threads between users and airlines, classifies sentiment using pre-trained NLP models, and evaluates support effectiveness using various metrics such as resolution likelihood and trajectory.
+The goal is to assess airline customer support on Twitter by mining user–airline conversations, classifying sentiment using pre-trained NLP models, and evaluating support effectiveness. Core metrics include sentiment shift, response time, and resolution trajectory.
 
 ---
 
 ## 2. Setup & Installation
 
-Clone the repository:
 ```bash
 git clone https://github.com/yourusername/airline-support-analysis.git
 cd airline-support-analysis
 ```
 
-(Optional) Create a virtual environment:
+Create a virtual environment (optional but recommended):
 ```bash
 python -m venv venv
 source venv/bin/activate        # macOS/Linux
-venv\Scripts\activate           # Windows
+venv\Scripts\activate         # Windows
 ```
 
-Install all dependencies:
+Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
@@ -55,10 +54,11 @@ pip install -r requirements.txt
 
 ## 3. Environment Configuration
 
-Create a `.env` file with your MongoDB connection string:
-```
+Create a `.env` file at the root of the project:
+```dotenv
 DATABASE_URL=mongodb://localhost:27017
 ```
+Ensure MongoDB is running locally or update the URL appropriately.
 
 ---
 
@@ -66,61 +66,58 @@ DATABASE_URL=mongodb://localhost:27017
 
 ### 4.1 Data Cleaning & Loading
 
-- `clean_json.py`: Cleans and validates tweet JSON files.  
-  **Output:** Cleaned tweets → `./cleaned_tweets_json/`
+- `clean_json.py`: Validates and filters raw tweet JSON lines.  
+  **Output:** `./cleaned_tweets_json/`
 
-- `load_initial_data.py`: Loads cleaned JSON into MongoDB (`tweets_try` collection).  
+- `load_initial_data.py`: Loads cleaned tweets into MongoDB (`tweets_try`).  
   **Usage:** `python load_initial_data.py`
 
-- `processing_data.py`: Helper functions to normalize tweet structure.  
-  **Usage:** Imported into multiple scripts.
+- `processing_data.py`: Extracts and normalizes tweet threads.  
+  **Used in:** `insert_convos.py`, `eda.py`, and more.
+
+- `pymongo_interface.py`: MongoDB interaction layer with batch utilities.
 
 ### 4.2 Conversation Mining & Sentiment Analysis
 
-- `insert_convos.py`: Extracts conversations, assigns sentiment scores, and saves to `conversations`.  
+- `insert_convos.py`: Reconstructs conversations and applies sentiment analysis using XLM-RoBERTa.  
   **Output:** MongoDB `conversations` collection.
 
-- `sentiment_analysis.py`: Uses `cardiffnlp/twitter-xlm-roberta-base-sentiment`.  
-  **Output:** Adds `sentiment.label` and `sentiment.score` to each tweet.
+- `sentiment_analysis.py`: Assigns sentiment labels and scores to tweets in conversation threads.
 
-- `evaluation_model.py`: Evaluates sentiment model accuracy using labeled datasets.  
-  **Output:** Classification report and accuracy score.
+- `evaluation_model.py`: Benchmarks a multilingual sentiment model on a public dataset.  
+  **Output:** Accuracy + classification report.
 
 ### 4.3 Metric Computation
 
-- `sentiment_evolution.py`: Computes:
-  - `conversation_score`
-  - `delta_sent`
-  - `start_sent`, `end_sent`
-  - `conversation_trajectory`  
-  **Output:** Updates MongoDB conversation documents.
-
-- `mark_resolved.py`: Flags resolved conversations based on improvement.  
-  **Output:** `conversation_data_resolved.json`
-
-- `add_topics_labels.py`: Assigns topics to conversations using regex-based keyword matching.  
-  **Output:** `conversation_data_with_topics.json`
+- `sentiment_evolution.py`: Computes advanced metrics for each conversation:  
+  - `conversation_score` (weighted sentiment)
+  - `delta_sent` (start to end sentiment)
+  - `evolution_score`, `evolution_category`, `conversation_trajectory`  
+  **Usage:** `python sentiment_evolution.py`
 
 ### 4.4 Data Exploration & Visualization
 
-- `convo_eda.py`: Computes summary stats and plots sentiment, response time, and counts.  
-  **Output:** Plots saved to `./plots/`
+- `convo_eda.py`: Generates statistical summaries and plots:
+  - Response times, daily sentiment, length distributions, airline comparisons.  
+  **Output:** Saved to `./plots/`
 
-- `sentiment_visualizer.py`: Generates advanced visualizations (score distribution, response impact, role-based trends).  
-  **Output:** Plots saved to `./plots/sentiment_evo/`
+- `eda.py`: General tweet-level EDA. Language distribution, mention frequency, volume trends.
 
-- `eda.py`: Language distribution, tweet volume over time, and airline mentions.
+- `sentiment_visualizer.py`: Creates advanced visualizations for:
+  - Role-based trends
+  - Sentiment trajectories
+  - Airline-level and topic-based comparisons  
+  **Output:** `./plots/sentiment_evo/`
 
-- `extract_first_tweets.py`: Exports structured conversation data and first tweets.  
-  **Output:** `conversation_data_cleaned.json`
+- `demo_monthly_summary.py`: Interactive monthly analysis tool. 
+  - Prompts for a date (e.g., `2022-06`) and generates focused reports.  
+  **Usage:** `python demo_monthly_summary.py`
 
-### 4.5 Statistical Evaluation
+### 4.5 Evaluation & Demonstration
 
-- `hypothesis_testing.py`: Runs chi-square test on topic vs. resolution likelihood.  
-  **Output:** Console report (significance, p-value).
-
-- `pymongo_interface.py`: MongoDB read/write batch functions.  
-  **Used by:** All processing and sentiment scripts.
+- `model_eval.py`: Compares predicted labels in the database to manually labeled CSV for accuracy and confusion matrices.  
+  **Input:** `tweet_evals.csv`  
+  **Usage:** `python model_eval.py`
 
 ---
 
@@ -130,24 +127,24 @@ DATABASE_URL=mongodb://localhost:27017
 # Step 1: Clean raw tweet data
 python clean_json.py
 
-# Step 2: Load cleaned data into MongoDB
+# Step 2: Load tweets into MongoDB
 python load_initial_data.py
 
-# Step 3: Extract conversations and apply sentiment analysis
+# Step 3: Extract conversations and apply sentiment
 python insert_convos.py
 
-# Step 4: Compute scoring and metrics
+# Step 4: Compute sentiment metrics and classifications
 python sentiment_evolution.py
 
-# Step 5: Add topic labels and resolution flags
-python add_topics_labels.py
-python mark_resolved.py
+# Step 5: Run monthly showcase demo (optional)
+python demo_monthly_summary.py
 
-# Step 6: Perform hypothesis testing
-python hypothesis_testing.py
-
-# Step 7: Generate visualizations
+# Step 6: Generate visual analytics
+python convo_eda.py
 python sentiment_visualizer.py
+
+# Step 7: Evaluate using labeled ground truth (optional)
+python model_eval.py
 ```
 
 ---
@@ -155,38 +152,33 @@ python sentiment_visualizer.py
 ## 6. Output Structure
 
 ### MongoDB Collections
-- `tweets_try`: Individual tweet records
-- `conversations`: Annotated and analyzed conversation threads
+- `tweets_try`: All raw and cleaned tweets.
+- `conversations`: Annotated threads with sentiment and metrics.
 
-### Local Files
-- `conversation_data_cleaned.json`: Export of processed conversation threads
-- `conversation_data_with_topics.json`: Topic-labeled conversation threads
-- `conversation_data_resolved.json`: Resolved vs unresolved flag
-
-### Visualizations
-- `/plots/`: Summary charts
-- `/plots/sentiment_evo/`: Role, airline, trajectory, and score visualizations
+### Local Outputs
+- `./cleaned_tweets_json/`: Filtered and valid tweets.
+- `./plots/`: Summary and analytics charts.
+- `./plots/sentiment_evo/`: Advanced sentiment trajectory and comparative plots.
 
 ---
 
 ## 7. Methodology Summary
 
-- **Cleaning:** Remove corrupted and malformed tweet entries.
-- **Loading:** Insert valid tweets into MongoDB.
-- **Thread Mining:** Reconstruct full user–airline conversations using reply chains.
-- **Sentiment Analysis:** Classify sentiment (positive, neutral, negative) using XLM-RoBERTa.
-- **Scoring:** Apply role-based and positional weights to derive conversation-level sentiment metrics.
-- **Labeling:** Detect common complaint topics via regex. Determine resolution status based on sentiment delta.
-- **Visualization:** Track trends, trajectory, sentiment shifts, and airline comparison metrics.
-- **Statistics:** Run chi-square test to identify if topic affects resolution likelihood.
+- **Cleaning:** Remove malformed tweets and irrelevant fields.
+- **Thread Mining:** Reconstruct reply chains between users and airline accounts.
+- **Sentiment Classification:** Assign tweet sentiment with multilingual transformer models.
+- **Metrics:** Calculate aggregate sentiment shifts and classify outcomes.
+- **Storage:** Store enriched conversations in MongoDB.
+- **Visualization:** Analyze per airline/topic trends, response patterns, sentiment evolution.
+- **Evaluation:** Benchmark models using labeled data and confusion matrices.
 
 ---
 
 ## 8. Notes
 
-- Ensure MongoDB is running and accessible via the `.env` `DATABASE_URL`.
-- Some scripts use multiprocessing—check CPU core allocation.
-- Designed for multilingual tweet data, but results focus on English and KLM-related conversations.
-- Outputs can be used for additional research, dashboards, or presentations.
+- Make sure MongoDB is accessible and running before any processing.
+- Set up your `.env` file with the correct `DATABASE_URL`.
+- Some scripts use `tqdm` or multiprocessing—console output may vary.
+- Supports multilingual tweets but KLM/English is the main focus.
 
 ---
