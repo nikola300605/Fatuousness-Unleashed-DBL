@@ -6,7 +6,7 @@ with open("conversation_data_resolved.json") as f:
     data = json.load(f)
 
 df = pd.DataFrame(data)
-sample_df = df.sample(n=5000, random_state=42)
+sample_df = df.sample(n=1000, random_state=42)
 crosstab = pd.crosstab(df["topic"], df["resolved"])
 crosstab_sample = pd.crosstab(sample_df["topic"], sample_df["resolved"])
 
