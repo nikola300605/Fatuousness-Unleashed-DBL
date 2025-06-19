@@ -717,7 +717,7 @@ def main():
     plot_evolution_score(conversations)
     plot_average_evo_score_per_topic(scores_df)
     plot_average_response_time_per_topic(scores_df, df_merged)
-    #plot_convo_length_clipped(scores_df)
+    """ plot_convo_length_clipped(scores_df) """
     plot_sentiment_journey(scores_df)
     plot_success_rate_by_airline(scores_df)
     plot_avg_convo_length_by_airline(scores_df)
