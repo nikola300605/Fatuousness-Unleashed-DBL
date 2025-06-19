@@ -144,6 +144,9 @@ Ensure MongoDB is running locally or update the URL appropriately.
 - `hypothesis_testing.py`: Runs chi-square tests to determine if topics significantly affect resolution likelihood.  
   **Input:** `conversation_data_resolved.json`
 
+- `business_insight.py`: Gives  additional statistical tests on buisness case
+
+
 ## 5. Execution Workflow
 
 ```bash
@@ -190,6 +193,9 @@ python save_to_db.py
 
 # Step 13: Perform hypothesis testing on resolution likelihood by topic
 python hypothesis_testing.py
+
+# Step 14: Perform additional statistical tests on buisness case 
+python business_insight.py
 
 ```
 
