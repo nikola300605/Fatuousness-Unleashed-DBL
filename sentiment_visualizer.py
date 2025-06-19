@@ -375,7 +375,7 @@ class SentimentVisualizer:
 
         # Define color mapping
         color_map = {
-            'positive': "#7abd22",    # Green
+            'positive': "#095C2D",    # Green
             'negative': "#911A1A",    # Red  
             'neutral': "#B99774"      # Cyan
         }

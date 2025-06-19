@@ -621,6 +621,77 @@ def plot_convo_length_vs_evo_patterns(scores_df):
     plt.tight_layout()
     save_plot_with_enhancements(os.path.join(PLOT_DIR, 'convo_length_vs_evo_patterns.png'))
 
+def plot_sentiment_distribution_by_role(df):
+        # Create figure with larger size for better presentation
+        fig, ax = plt.subplots(figsize=(10, 7))
+        
+        # Group by role and sentiment, then create normalized data
+        tab = df[df['airline'] == "KLM"].groupby(['role', 'sentiment_label']).size().unstack(fill_value=0)
+        
+        # Normalize to percentages (0-100)
+        tab_normalized = tab.div(tab.sum(axis=1), axis=0) * 100
+
+        # Define color mapping
+        color_map = {
+            'positive': "#095C2D",    # Green
+            'negative': "#911A1A",    # Red  
+            'neutral': "#B99774"      # Cyan
+        }
+        
+        # Get colors for available sentiment labels
+        colors = [color_map.get(col, '#808080') for col in tab_normalized.columns]
+        # Create stacked bar chart
+        tab_normalized.plot(
+            kind='bar', 
+            ax=ax, 
+            stacked=True,
+            color=colors,
+            width=0.6,
+            edgecolor='white',
+            linewidth=1.5
+        )
+        
+        
+        
+        # Format y-axis to show percentages
+        ax.set_ylim(0, 100)
+        ax.set_yticks(range(0, 101, 20))
+        ax.set_yticklabels([f'{i}%' for i in range(0, 101, 20)])
+        apply_enhanced_styling(ax, "Sentiment Distribution by Role for KLM", "Role", "Percentage (%)")
+        # Improve x-axis labels
+        ax.set_xticklabels(['User', 'Support'], rotation=0, fontsize=11)
+        
+        # Customize legend
+        legend = ax.legend(
+            title='Sentiment',
+            title_fontsize=11,
+            fontsize=10,
+            loc='upper right',
+            frameon=True,
+            fancybox=True,
+            shadow=True,
+            framealpha=0.9
+        )
+        legend.get_title().set_fontweight('bold')
+        
+        # Add percentage labels on bars
+        for container in ax.containers:
+            ax.bar_label(container, fmt='%.1f%%', label_type='center', 
+                        fontsize=9, fontweight='bold', color='white')
+        
+        # Grid for better readability
+        ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.5)
+        ax.set_axisbelow(True)
+        
+        # Remove top and right spines for cleaner look
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(0.8)
+        ax.spines['bottom'].set_linewidth(0.8)
+        
+        # Adjust layout to prevent label cutoff
+        save_plot_with_enhancements(os.path.join(PLOT_DIR, 'sentiment_distribution_by_role.png'))
+        plt.tight_layout()
 
 
 # Updated main function with all plots
@@ -658,6 +729,7 @@ def main():
     plot_response_sentiment_analysis(df_merged)
     plot_extreme_cases(scores_df)
     plot_sentiment_over_time_by_airline(scores_df, df_merged)
+    plot_sentiment_distribution_by_role(df_merged)
 
 
 if __name__ == '__main__':
